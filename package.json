@@ -1,6 +1,6 @@
 {
   "name": "@rolobits/is-human-cadence",
-  "version": "0.0.0-development",
+  "version": "1.0.0",
   "description": "Keystroke dynamics bot detection. Analyzes typing rhythm, not content. Zero deps, <3KB gzip.",
   "publishConfig": {
     "access": "public"
