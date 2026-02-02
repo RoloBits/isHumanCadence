@@ -1,7 +1,10 @@
 {
-  "name": "is-human-cadence",
+  "name": "@rolobits/is-human-cadence",
   "version": "0.0.1",
-  "description": "Detect human vs bot input using keystroke dynamics",
+  "description": "Keystroke dynamics bot detection. Analyzes typing rhythm, not content. Zero deps, <3KB gzip.",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -77,6 +80,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ApoloDev/is-human-cadence"
+    "url": "https://github.com/RoloBits/isHumanCadence"
   }
 }
