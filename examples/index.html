@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>is-human-cadence — Interactive Demo</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <h1>is-human-cadence</h1>
+      <p class="subtitle">
+        Keystroke dynamics bot detection. Analyzes typing rhythm, not content.
+      </p>
+    </header>
+
+    <div class="demo-grid">
+      <section class="input-section">
+        <label for="typing-area">Type anything below:</label>
+        <textarea
+          id="typing-area"
+          rows="6"
+          placeholder="Start typing to see your humanity score..."
+          autocomplete="off"
+          spellcheck="false"
+        ></textarea>
+        <div class="input-footer">
+          <span id="sample-count">0 samples</span>
+          <span id="paste-indicator" class="hidden">Paste detected</span>
+        </div>
+        <div class="button-row">
+          <button id="btn-bot" type="button">Simulate Bot</button>
+          <button id="btn-reset" type="button">Reset</button>
+        </div>
+      </section>
+
+      <section class="score-section">
+        <div class="gauge-container">
+          <div class="gauge-label">Humanity Score</div>
+          <div class="gauge">
+            <div class="gauge-fill" id="gauge-fill"></div>
+            <span class="gauge-value" id="gauge-value">0.50</span>
+          </div>
+          <div class="gauge-scale">
+            <span>0.0 Bot</span>
+            <span>1.0 Human</span>
+          </div>
+        </div>
+        <div id="confidence-badge" class="confidence-badge not-confident">
+          Need more input
+        </div>
+      </section>
+
+      <section class="metrics-section">
+        <h2>Metric Breakdown</h2>
+        <div class="metric-list">
+          <div class="metric-row">
+            <span class="metric-name">Dwell Variance</span>
+            <div class="metric-bar"><div class="metric-bar-fill" id="bar-dwellVariance"></div></div>
+            <span class="metric-value" id="val-dwellVariance">0.50</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">Flight Fit</span>
+            <div class="metric-bar"><div class="metric-bar-fill" id="bar-flightFit"></div></div>
+            <span class="metric-value" id="val-flightFit">0.50</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">Timing Entropy</span>
+            <div class="metric-bar"><div class="metric-bar-fill" id="bar-timingEntropy"></div></div>
+            <span class="metric-value" id="val-timingEntropy">0.50</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">Correction Ratio</span>
+            <div class="metric-bar"><div class="metric-bar-fill" id="bar-correctionRatio"></div></div>
+            <span class="metric-value" id="val-correctionRatio">0.50</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">Burst Regularity</span>
+            <div class="metric-bar"><div class="metric-bar-fill" id="bar-burstRegularity"></div></div>
+            <span class="metric-value" id="val-burstRegularity">0.50</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <a href="https://github.com/ApoloDev/isHumanCadence" target="_blank" rel="noopener">
+        GitHub
+      </a>
+      <span class="sep">·</span>
+      <a href="https://www.npmjs.com/package/@rolobits/is-human-cadence" target="_blank" rel="noopener">
+        npm
+      </a>
+    </footer>
+  </main>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
