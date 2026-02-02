@@ -52,10 +52,16 @@
     }
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.10",
+    "@types/react-dom": "19.2.3",
+    "jsdom": "^25.0.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
-    "vitest": "^2.0.0",
-    "jsdom": "^25.0.0"
+    "vitest": "^2.0.0"
   },
   "keywords": [
     "captcha",
