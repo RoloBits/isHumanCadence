@@ -56,12 +56,14 @@
     "@testing-library/react": "16.3.2",
     "@types/react": "19.2.10",
     "@types/react-dom": "19.2.3",
+    "@vue/test-utils": "2.4.6",
     "jsdom": "^25.0.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "vue": "3.5.27"
   },
   "keywords": [
     "captcha",
