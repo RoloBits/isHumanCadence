@@ -17,8 +17,8 @@ class MockTarget extends EventTarget {
   }
 }
 
-function fireKey(target: EventTarget, type: 'keydown' | 'keyup', key: string = 'a') {
-  target.dispatchEvent(new KeyboardEvent(type, { key }));
+function fireKey(target: EventTarget, type: 'keydown' | 'keyup', key: string = 'a', opts?: KeyboardEventInit) {
+  target.dispatchEvent(new KeyboardEvent(type, { key, ...opts }));
 }
 
 function firePaste(target: EventTarget) {
@@ -226,5 +226,186 @@ describe('createObserver', () => {
     expect(state.flights.toArray()).toEqual([60, 65]);
     expect(state.total).toBe(3);
     expect(state.corrections).toBe(0);
+  });
+
+  describe('modifier-key filtering', () => {
+    it('filters Cmd+C (metaKey) — no dwell, no flight, no total', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Cmd+C: Meta keydown then C keydown, both with metaKey: true
+      now = 1000;
+      fireKey(target, 'keydown', 'Meta', { metaKey: true });
+      now = 1030;
+      fireKey(target, 'keydown', 'c', { metaKey: true });
+      now = 1060;
+      fireKey(target, 'keyup', 'c', { metaKey: true });
+      now = 1080;
+      fireKey(target, 'keyup', 'Meta');
+
+      const state = obs.getState();
+      expect(state.dwells.toArray()).toEqual([]);
+      expect(state.flights.toArray()).toEqual([]);
+      expect(state.total).toBe(0);
+    });
+
+    it('filters Ctrl+C (ctrlKey)', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      now = 1000;
+      fireKey(target, 'keydown', 'Control', { ctrlKey: true });
+      now = 1030;
+      fireKey(target, 'keydown', 'c', { ctrlKey: true });
+      now = 1060;
+      fireKey(target, 'keyup', 'c', { ctrlKey: true });
+      now = 1080;
+      fireKey(target, 'keyup', 'Control');
+
+      const state = obs.getState();
+      expect(state.dwells.toArray()).toEqual([]);
+      expect(state.total).toBe(0);
+    });
+
+    it('filters Alt combos (altKey)', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      now = 1000;
+      fireKey(target, 'keydown', 'Alt', { altKey: true });
+      now = 1030;
+      fireKey(target, 'keydown', 'f', { altKey: true });
+      now = 1060;
+      fireKey(target, 'keyup', 'f', { altKey: true });
+      now = 1080;
+      fireKey(target, 'keyup', 'Alt');
+
+      const state = obs.getState();
+      expect(state.dwells.toArray()).toEqual([]);
+      expect(state.total).toBe(0);
+    });
+
+    it('filters key repeat events', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Initial press
+      now = 1000;
+      fireKey(target, 'keydown', 'a');
+
+      // Auto-repeat events (repeat: true)
+      now = 1050;
+      fireKey(target, 'keydown', 'a', { repeat: true });
+      now = 1100;
+      fireKey(target, 'keydown', 'a', { repeat: true });
+
+      // Release
+      now = 1120;
+      fireKey(target, 'keyup', 'a');
+
+      const state = obs.getState();
+      expect(state.total).toBe(1); // only the initial press
+      expect(state.dwells.toArray()).toEqual([120]); // 1120 - 1000
+    });
+
+    it('does NOT filter Shift+char (normal uppercase typing)', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Type 'a' first to establish lastReleaseTime
+      now = 1000;
+      fireKey(target, 'keydown', 'a');
+      now = 1050;
+      fireKey(target, 'keyup', 'a');
+
+      // Shift+A (shiftKey is NOT filtered)
+      now = 1150;
+      fireKey(target, 'keydown', 'A', { shiftKey: true });
+      now = 1200;
+      fireKey(target, 'keyup', 'A', { shiftKey: true });
+
+      const state = obs.getState();
+      expect(state.total).toBe(2);
+      expect(state.dwells.toArray()).toEqual([50, 50]);
+      expect(state.flights.toArray()).toEqual([100]); // 1150 - 1050
+    });
+
+    it('Ctrl+Backspace counts correction but skips timing', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      now = 1000;
+      fireKey(target, 'keydown', 'Backspace', { ctrlKey: true });
+      now = 1030;
+      fireKey(target, 'keyup', 'Backspace');
+
+      const state = obs.getState();
+      expect(state.corrections).toBe(1); // correction counted
+      expect(state.dwells.toArray()).toEqual([]); // no timing recorded
+      expect(state.total).toBe(0); // not counted as a keystroke
+    });
+
+    it('typing → Cmd+C → typing: buffer has only typing data', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Type 'a': press 1000, release 1040 → dwell 40
+      now = 1000; fireKey(target, 'keydown', 'a');
+      now = 1040; fireKey(target, 'keyup', 'a');
+
+      // Type 'b': press 1100, release 1140 → dwell 40, flight 60
+      now = 1100; fireKey(target, 'keydown', 'b');
+      now = 1140; fireKey(target, 'keyup', 'b');
+
+      // Cmd+C (all filtered)
+      now = 1200;
+      fireKey(target, 'keydown', 'Meta', { metaKey: true });
+      now = 1220;
+      fireKey(target, 'keydown', 'c', { metaKey: true });
+      now = 1250;
+      fireKey(target, 'keyup', 'c', { metaKey: true });
+      now = 1270;
+      fireKey(target, 'keyup', 'Meta');
+
+      // Type 'c': press 1400, release 1450 → dwell 50, flight 260 (from 'b' release)
+      now = 1400; fireKey(target, 'keydown', 'c');
+      now = 1450; fireKey(target, 'keyup', 'c');
+
+      const state = obs.getState();
+      expect(state.dwells.toArray()).toEqual([40, 40, 50]);
+      expect(state.flights.toArray()).toEqual([60, 260]);
+      expect(state.total).toBe(3);
+    });
+
+    it('pendingFilteredUps drains correctly with multiple filtered keys', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Cmd+Shift+S (3 modifiers, all filtered due to metaKey)
+      now = 1000;
+      fireKey(target, 'keydown', 'Meta', { metaKey: true });
+      now = 1010;
+      fireKey(target, 'keydown', 'Shift', { metaKey: true, shiftKey: true });
+      now = 1020;
+      fireKey(target, 'keydown', 's', { metaKey: true, shiftKey: true });
+
+      // Release all three
+      now = 1050;
+      fireKey(target, 'keyup', 's');
+      now = 1060;
+      fireKey(target, 'keyup', 'Shift');
+      now = 1070;
+      fireKey(target, 'keyup', 'Meta');
+
+      // Now type a normal key — should work fine
+      now = 1200;
+      fireKey(target, 'keydown', 'x');
+      now = 1250;
+      fireKey(target, 'keyup', 'x');
+
+      const state = obs.getState();
+      expect(state.dwells.toArray()).toEqual([50]);
+      expect(state.total).toBe(1);
+    });
   });
 });

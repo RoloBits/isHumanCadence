@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createCadence } from '../src/index';
 import type { CadenceResult } from '../src/types';
 
-function fireKey(target: EventTarget, type: 'keydown' | 'keyup', key: string = 'a') {
-  target.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true }));
+function fireKey(target: EventTarget, type: 'keydown' | 'keyup', key: string = 'a', opts?: KeyboardEventInit) {
+  target.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true, ...opts }));
 }
 
 /**
@@ -207,6 +207,44 @@ describe('createCadence integration', () => {
     const result = cadence.analyze();
     expect(result.sampleCount).toBe(0);
     expect(result.score).toBe(0.5);
+  });
+
+  it('Cmd+C mid-typing does not degrade human score', () => {
+    const cadence = createCadence(target, { scheduling: 'manual', minSamples: 20 });
+    cadence.start();
+
+    const timings = humanTimings(50);
+
+    // Type first 25 keys
+    typeSequence(target, timings.slice(0, 25), 1000, mockNow);
+    const scoreBefore = cadence.analyze().score;
+
+    // Cmd+C shortcut (should be fully filtered)
+    mockNow.value += 300;
+    fireKey(target, 'keydown', 'Meta', { metaKey: true });
+    mockNow.value += 20;
+    fireKey(target, 'keydown', 'c', { metaKey: true });
+    mockNow.value += 30;
+    fireKey(target, 'keyup', 'c', { metaKey: true });
+    mockNow.value += 20;
+    fireKey(target, 'keyup', 'Meta');
+
+    // Type remaining 25 keys
+    typeSequence(target, timings.slice(25), mockNow.value + 100, mockNow);
+
+    // Add some corrections for realism
+    mockNow.value += 200;
+    fireKey(target, 'keydown', 'Backspace');
+    mockNow.value += 40;
+    fireKey(target, 'keyup', 'Backspace');
+
+    const scoreAfter = cadence.analyze().score;
+
+    // Score should not drop significantly due to the shortcut
+    expect(scoreAfter).toBeGreaterThan(0.5);
+    expect(scoreAfter).toBeGreaterThan(scoreBefore - 0.1);
+
+    cadence.destroy();
   });
 
   it('works with custom weights', () => {

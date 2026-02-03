@@ -42,14 +42,24 @@ export function createObserver(
   let lastPressTime = 0;
   let lastReleaseTime = 0;
   let activeKeys = 0;
+  let pendingFilteredUps = 0;
 
   const onKeyDown = (e: Event) => {
     const now = performance.now();
     const ke = e as KeyboardEvent;
 
-    // Correction check — the ONLY place we read event.key
+    // Correction check — runs before modifier filter so Ctrl+Backspace still counts
     if (ke.key === 'Backspace' || ke.key === 'Delete') {
       corrections++;
+    }
+
+    // Skip auto-repeat — held keys don't generate extra keyups
+    if (ke.repeat) return;
+
+    // Skip modifier-key shortcuts — not typing
+    if (ke.metaKey || ke.ctrlKey || ke.altKey) {
+      pendingFilteredUps++;
+      return;
     }
 
     activeKeys++;
@@ -64,6 +74,11 @@ export function createObserver(
   };
 
   const onKeyUp = () => {
+    if (pendingFilteredUps > 0) {
+      pendingFilteredUps--;
+      return;
+    }
+
     const now = performance.now();
 
     if (lastPressTime > 0) {
@@ -107,6 +122,7 @@ export function createObserver(
     lastPressTime = 0;
     lastReleaseTime = 0;
     activeKeys = 0;
+    pendingFilteredUps = 0;
   }
 
   function getState(): ObserverState {
