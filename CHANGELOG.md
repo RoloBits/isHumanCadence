@@ -1,3 +1,11 @@
+# [1.2.0](https://github.com/RoloBits/isHumanCadence/compare/v1.1.0...v1.2.0) (2026-02-03)
+
+
+### Features
+
+* **analyzer:** redesign correction ratio as neutral-floor human-bonus metric ([0f5ea10](https://github.com/RoloBits/isHumanCadence/commit/0f5ea103958cdc102388669ff57a946a1f50faa9))
+* **observer:** add inputWithoutKeystrokeCount signal ([cde4b2a](https://github.com/RoloBits/isHumanCadence/commit/cde4b2a044057414b546e1eadae22d12dc42accd))
+
 # [1.1.0](https://github.com/RoloBits/isHumanCadence/compare/v1.0.2...v1.1.0) (2026-02-03)
 
 
