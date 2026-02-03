@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/RoloBits/isHumanCadence/compare/v1.0.0...v1.0.1) (2026-02-03)
+
+
+### Bug Fixes
+
+* filter modifier-key shortcuts from keystroke timing data ([8f7c333](https://github.com/RoloBits/isHumanCadence/commit/8f7c3333c9dbf7d98ba87dcbcbe43cd1c7757d52))
+
 # 1.0.0 (2026-02-02)
 
 
