@@ -42,6 +42,8 @@ const MIN_BURST_SAMPLES = 10;
  *  overlap patterns — fewer than 10 gives unreliable rates. */
 const MIN_ROLLOVER_SAMPLES = 10;
 
+/** Sentinel: metric has no behavioral data to score (e.g. 0 corrections). */
+const NO_DATA = -1;
 
 export interface AnalyzerResult {
   score: number;
@@ -130,8 +132,7 @@ function scoreTimingEntropy(flights: number[]): number {
 /**
  * Correction ratio score.
  * Corrections are a positive human signal — bots don't backspace.
- * Absence of corrections is uninformative, not penalizing.
- * Rescaled to [0.5, 1.0]: 0 corrections → 0.5 (neutral).
+ * Zero corrections → NO_DATA (gated out of weighted average).
  *
  * Aalto 136M study (Dhakal et al., CHI 2018): correction rates vary widely
  * (fast typists: 3.4% ± 2.05%, slow: 9.05% ± 6.85%). Zero corrections
@@ -139,11 +140,11 @@ function scoreTimingEntropy(flights: number[]): number {
  */
 function scoreCorrectionRatio(corrections: number, total: number): number {
   if (total < MIN_CORRECTION_SAMPLES) return 0.5;
+  if (corrections === 0) return NO_DATA;
   const ratio = corrections / total;
   const raw = sigmoid(ratio, 80, 0.015);
-  // Rescale from [floor, 1] → [0.5, 1] where floor = sigmoid(0) ≈ 0.231
   const floor = sigmoid(0, 80, 0.015);
-  const score = 0.5 + 0.5 * (raw - floor) / (1 - floor);
+  const score = (raw - floor) / (1 - floor);
   // Excessive corrections (>30%) → slight penalty
   return ratio > 0.3 ? score * 0.8 : score;
 }
@@ -168,8 +169,8 @@ function scoreBurstRegularity(flights: number[]): number {
     }
   }
 
-  // No bursts detected — could be one continuous stream (neutral)
-  if (burstGaps.length < 2) return 0.5;
+  // No bursts detected — no signal to score
+  if (burstGaps.length < 2) return NO_DATA;
 
   const gapStddev = stddev(burstGaps);
   const gapMean = mean(burstGaps);
@@ -184,14 +185,15 @@ function scoreBurstRegularity(flights: number[]): number {
  * Rollover = pressing next key before releasing current key.
  * Dhakal et al.: r=0.73 with WPM (strongest single predictor).
  * Humans: 25% average, 50% for fast typists. Bots: 0%.
- * Rescaled to [0.5, 1.0]: 0 rollovers → 0.5 (neutral).
+ * Zero rollovers → NO_DATA (gated out of weighted average).
  */
 function scoreRolloverRate(rollovers: number, total: number): number {
   if (total < MIN_ROLLOVER_SAMPLES) return 0.5;
+  if (rollovers === 0) return NO_DATA;
   const ratio = rollovers / total;
   const raw = sigmoid(ratio, 60, 0.03);
   const floor = sigmoid(0, 60, 0.03);
-  return 0.5 + 0.5 * (raw - floor) / (1 - floor);
+  return (raw - floor) / (1 - floor);
 }
 
 export function createAnalyzer(config: AnalyzerConfig): Analyzer {
@@ -210,7 +212,7 @@ export function createAnalyzer(config: AnalyzerConfig): Analyzer {
       const sampleCount = dwells.length;
       const confident = sampleCount >= minSamples;
 
-      const metrics = {
+      const raw = {
         dwellVariance: scoreDwellVariance(dwells),
         flightFit: scoreFlightFit(flights),
         timingEntropy: scoreTimingEntropy(flights),
@@ -219,16 +221,31 @@ export function createAnalyzer(config: AnalyzerConfig): Analyzer {
         rolloverRate: scoreRolloverRate(rollovers, total),
       };
 
-      const score = clamp(
-        weights.dwellVariance * metrics.dwellVariance +
-        weights.flightFit * metrics.flightFit +
-        weights.timingEntropy * metrics.timingEntropy +
-        weights.correctionRatio * metrics.correctionRatio +
-        weights.burstRegularity * metrics.burstRegularity +
-        weights.rolloverRate * metrics.rolloverRate,
-        0,
-        1,
-      );
+      // Public metrics: replace NO_DATA with 0 for reporting
+      const metrics: MetricScores = {
+        dwellVariance: raw.dwellVariance === NO_DATA ? 0 : raw.dwellVariance,
+        flightFit: raw.flightFit === NO_DATA ? 0 : raw.flightFit,
+        timingEntropy: raw.timingEntropy === NO_DATA ? 0 : raw.timingEntropy,
+        correctionRatio: raw.correctionRatio === NO_DATA ? 0 : raw.correctionRatio,
+        burstRegularity: raw.burstRegularity === NO_DATA ? 0 : raw.burstRegularity,
+        rolloverRate: raw.rolloverRate === NO_DATA ? 0 : raw.rolloverRate,
+      };
+
+      // Dynamic weight redistribution: skip gated (NO_DATA) metrics
+      let weightedSum = 0;
+      let weightSum = 0;
+      const keys: (keyof MetricWeights)[] = [
+        'dwellVariance', 'flightFit', 'timingEntropy',
+        'correctionRatio', 'burstRegularity', 'rolloverRate',
+      ];
+      for (const k of keys) {
+        if (raw[k] !== NO_DATA) {
+          weightedSum += weights[k] * raw[k];
+          weightSum += weights[k];
+        }
+      }
+
+      const score = weightSum > 0 ? clamp(weightedSum / weightSum, 0, 1) : 0;
 
       return { score, metrics, sampleCount, confident };
     },

@@ -206,39 +206,40 @@ describe('createAnalyzer', () => {
     expect(result.metrics.dwellVariance).not.toBe(0.5);
   });
 
-  it('zero corrections scores neutral regardless of sample size', () => {
+  it('zero corrections are gated (excluded from score)', () => {
     const corrOnlyWeights = {
       dwellVariance: 0, flightFit: 0, timingEntropy: 0,
       correctionRatio: 1.0, burstRegularity: 0, rolloverRate: 0,
     };
     const analyzer = createAnalyzer({ minSamples: 5, weights: corrOnlyWeights });
 
-    // Short input
+    // Short input — gated, no active weights → score 0
     const short = analyzer.analyze(
       fillBuffer(new Array(10).fill(50)),
       fillBuffer(new Array(10).fill(100)), 0, 0, 10,
     );
-    expect(short.score).toBe(0.5);
+    expect(short.score).toBe(0);
 
-    // Long input — still neutral
+    // Long input — still gated
     const long = analyzer.analyze(
       fillBuffer(new Array(100).fill(50)),
       fillBuffer(new Array(100).fill(100)), 0, 0, 100,
     );
-    expect(long.score).toBe(0.5);
+    expect(long.score).toBe(0);
   });
 
-  it('non-zero corrections score above neutral', () => {
+  it('non-zero corrections score above zero', () => {
     const corrOnlyWeights = {
       dwellVariance: 0, flightFit: 0, timingEntropy: 0,
       correctionRatio: 1.0, burstRegularity: 0, rolloverRate: 0,
     };
     const analyzer = createAnalyzer({ minSamples: 5, weights: corrOnlyWeights });
+    // 3 corrections in 50 keystrokes (6%) — moderate human signal
     const result = analyzer.analyze(
       fillBuffer(new Array(50).fill(50)),
       fillBuffer(new Array(50).fill(100)), 3, 0, 50,
     );
-    expect(result.score).toBeGreaterThan(0.9);
+    expect(result.score).toBeGreaterThan(0.6);
   });
 
   it('respects custom weights', () => {
@@ -286,7 +287,7 @@ describe('createAnalyzer', () => {
       expect(result.metrics.rolloverRate).toBe(0.5);
     });
 
-    it('zero rollovers scores neutral (0.5)', () => {
+    it('zero rollovers are gated (excluded from score)', () => {
       const rollOnlyWeights = {
         dwellVariance: 0, flightFit: 0, timingEntropy: 0,
         correctionRatio: 0, burstRegularity: 0, rolloverRate: 1.0,
@@ -297,7 +298,7 @@ describe('createAnalyzer', () => {
         fillBuffer(new Array(50).fill(100)),
         0, 0, 50,
       );
-      expect(result.score).toBe(0.5);
+      expect(result.score).toBe(0);
     });
 
     it('non-zero rollovers score above neutral', () => {
@@ -346,6 +347,53 @@ describe('createAnalyzer', () => {
       );
       // Human flights have median well above 60ms — no penalty
       expect(result.metrics.flightFit).toBeGreaterThan(0.15);
+    });
+  });
+
+  describe('metric gating', () => {
+    it('gated metrics report 0 in metrics object', () => {
+      const analyzer = createAnalyzer(defaultConfig);
+      // Bot: 0 corrections, 0 rollovers, constant flights (no bursts)
+      const bot = generateConstantBot(50);
+      const result = analyzer.analyze(
+        fillBuffer(bot.dwells),
+        fillBuffer(bot.flights),
+        bot.corrections,
+        bot.rollovers,
+        bot.total,
+      );
+      expect(result.metrics.correctionRatio).toBe(0);
+      expect(result.metrics.rolloverRate).toBe(0);
+      expect(result.metrics.burstRegularity).toBe(0);
+    });
+
+    it('gated metrics do not inflate bot score', () => {
+      const analyzer = createAnalyzer(defaultConfig);
+      // Bot with 0 corrections, 0 rollovers, no bursts
+      const bot = generateConstantBot(50);
+      const result = analyzer.analyze(
+        fillBuffer(bot.dwells),
+        fillBuffer(bot.flights),
+        bot.corrections,
+        bot.rollovers,
+        bot.total,
+      );
+      // Without gating this would be ~0.38; with gating should be < 0.35
+      expect(result.score).toBeLessThan(0.35);
+    });
+
+    it('human with all signals scores same as before gating', () => {
+      const analyzer = createAnalyzer(defaultConfig);
+      const human = generateHumanLike(80);
+      const result = analyzer.analyze(
+        fillBuffer(human.dwells),
+        fillBuffer(human.flights),
+        human.corrections,
+        human.rollovers,
+        human.total,
+      );
+      // Human with full signals — gating doesn't apply, score stays high
+      expect(result.score).toBeGreaterThan(0.5);
     });
   });
 
