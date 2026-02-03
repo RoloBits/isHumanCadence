@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/RoloBits/isHumanCadence/compare/v1.2.0...v1.3.0) (2026-02-03)
+
+
+### Features
+
+* **analyzer:** add rolloverRate metric, IKI floor, and held-key dwell fix ([110600d](https://github.com/RoloBits/isHumanCadence/commit/110600d7894370c3aafc3f86dff9953956a9b01b))
+
 # [1.2.0](https://github.com/RoloBits/isHumanCadence/compare/v1.1.0...v1.2.0) (2026-02-03)
 
 
