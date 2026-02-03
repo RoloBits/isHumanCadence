@@ -334,7 +334,7 @@ describe('createCadence integration', () => {
     // Heavy weight on correction ratio
     const cadence = createCadence(target, {
       scheduling: 'manual',
-      weights: { correctionRatio: 1.0, dwellVariance: 0, flightFit: 0, timingEntropy: 0, burstRegularity: 0 },
+      weights: { correctionRatio: 1.0, dwellVariance: 0, flightFit: 0, timingEntropy: 0, burstRegularity: 0, rolloverRate: 0 },
     });
     cadence.start();
 

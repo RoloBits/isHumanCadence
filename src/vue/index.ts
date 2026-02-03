@@ -30,6 +30,7 @@ const NEUTRAL_METRICS: MetricScores = {
   timingEntropy: 0.5,
   correctionRatio: 0.5,
   burstRegularity: 0.5,
+  rolloverRate: 0.5,
 };
 
 /**

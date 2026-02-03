@@ -9,6 +9,7 @@ export interface ObserverState {
   dwells: RingBuffer;
   flights: RingBuffer;
   corrections: number;
+  rollovers: number;
   total: number;
   pasteDetected: boolean;
   syntheticEvents: number;
@@ -36,6 +37,7 @@ export function createObserver(
   const dwells = createBuffer(config.windowSize);
   const flights = createBuffer(config.windowSize);
   let corrections = 0;
+  let rollovers = 0;
   let total = 0;
   let pasteDetected = false;
   let syntheticEvents = 0;
@@ -51,6 +53,7 @@ export function createObserver(
   let lastReleaseTime = 0;
   let activeKeys = 0;
   let pendingFilteredUps = 0;
+  let hadRepeat = false;
 
   const onKeyDown = (e: Event) => {
     const now = performance.now();
@@ -66,7 +69,7 @@ export function createObserver(
     }
 
     // Skip auto-repeat — held keys don't generate extra keyups
-    if (ke.repeat) return;
+    if (ke.repeat) { hadRepeat = true; return; }
 
     // Skip modifier-key shortcuts — not typing
     if (ke.metaKey || ke.ctrlKey || ke.altKey) {
@@ -75,6 +78,7 @@ export function createObserver(
     }
 
     activeKeys++;
+    if (activeKeys > 1) rollovers++;
     total++;
 
     // Flight time: gap between previous key release and this key press
@@ -93,9 +97,10 @@ export function createObserver(
 
     const now = performance.now();
 
-    if (lastPressTime > 0) {
+    if (lastPressTime > 0 && !hadRepeat) {
       dwells.push(now - lastPressTime);
     }
+    hadRepeat = false;
 
     activeKeys = Math.max(0, activeKeys - 1);
     lastReleaseTime = now;
@@ -138,6 +143,7 @@ export function createObserver(
     dwells.clear();
     flights.clear();
     corrections = 0;
+    rollovers = 0;
     total = 0;
     pasteDetected = false;
     syntheticEvents = 0;
@@ -148,6 +154,7 @@ export function createObserver(
     lastReleaseTime = 0;
     activeKeys = 0;
     pendingFilteredUps = 0;
+    hadRepeat = false;
   }
 
   function destroy() {
@@ -156,7 +163,7 @@ export function createObserver(
   }
 
   function getState(): ObserverState {
-    return { dwells, flights, corrections, total, pasteDetected, syntheticEvents, inputWithoutKeystrokes, inputWithoutKeystrokeCount };
+    return { dwells, flights, corrections, rollovers, total, pasteDetected, syntheticEvents, inputWithoutKeystrokes, inputWithoutKeystrokeCount };
   }
 
   return { start, stop, clear, destroy, getState };

@@ -4,11 +4,12 @@ import { stddev, shannonEntropy, sigmoid, clamp, mean } from './utils';
 import { detectSpoof } from './anti-spoof';
 
 export const DEFAULT_WEIGHTS: MetricWeights = {
-  dwellVariance: 0.15,
-  flightFit: 0.30,
+  dwellVariance: 0.10,
+  flightFit: 0.25,
   timingEntropy: 0.20,
-  correctionRatio: 0.15,
-  burstRegularity: 0.20,
+  correctionRatio: 0.10,
+  burstRegularity: 0.15,
+  rolloverRate: 0.20,
 };
 
 /** Minimum dwell samples for variance scoring.
@@ -36,6 +37,11 @@ const MIN_CORRECTION_SAMPLES = 5;
  *  inter-burst gaps (threshold: 300ms), which typically requires ~10 flights. */
 const MIN_BURST_SAMPLES = 10;
 
+/** Minimum total keystrokes for rollover rate scoring.
+ *  Rollover detection requires enough keystrokes to observe
+ *  overlap patterns — fewer than 10 gives unreliable rates. */
+const MIN_ROLLOVER_SAMPLES = 10;
+
 
 export interface AnalyzerResult {
   score: number;
@@ -54,6 +60,7 @@ export interface Analyzer {
     dwells: RingBuffer,
     flights: RingBuffer,
     corrections: number,
+    rollovers: number,
     total: number,
   ): AnalyzerResult;
 }
@@ -81,7 +88,15 @@ function scoreDwellVariance(dwells: number[]): number {
 function scoreFlightFit(flights: number[]): number {
   if (flights.length < MIN_FLIGHT_SAMPLES) return 0.5;
   const result = detectSpoof(flights);
-  return result.genuineScore;
+
+  // Physical IKI floor: sustained median < 60ms is impossible for humans
+  let subFloor = 0;
+  for (let i = 0; i < flights.length; i++) {
+    if (flights[i] < 60) subFloor++;
+  }
+  const ikiPenalty = (subFloor / flights.length) > 0.5 ? 0.15 : 1.0;
+
+  return result.genuineScore * ikiPenalty;
 }
 
 /**
@@ -93,10 +108,23 @@ function scoreFlightFit(flights: number[]): number {
 function scoreTimingEntropy(flights: number[]): number {
   if (flights.length < MIN_ENTROPY_SAMPLES) return 0.5;
   const entropy = shannonEntropy(flights, 10);
-  // Sweet spot is ~2.0–3.5 bits
-  const up = sigmoid(entropy, 3, 1.5);   // ramps up around 1.5 bits
-  const down = sigmoid(entropy, -3, 3.5); // ramps down around 3.5 bits
-  return up * down;
+
+  // Fluctuation ratio: max/min IKI distinguishes narrow-range bots from humans
+  let min = flights[0], max = flights[0];
+  for (let i = 1; i < flights.length; i++) {
+    if (flights[i] < min) min = flights[i];
+    if (flights[i] > max) max = flights[i];
+  }
+  const fluctuation = min > 0 ? max / min : 0;
+  const fluctScore = sigmoid(fluctuation, 1.0, 4);
+
+  // Base entropy (unchanged bell shape)
+  const up = sigmoid(entropy, 3, 1.5);
+  const down = sigmoid(entropy, -3, 3.5);
+  const entropyScore = up * down;
+
+  // Combine: 70% entropy + 30% fluctuation
+  return 0.7 * entropyScore + 0.3 * fluctScore;
 }
 
 /**
@@ -151,6 +179,21 @@ function scoreBurstRegularity(flights: number[]): number {
   return sigmoid(cv, 8, 0.2);
 }
 
+/**
+ * Rollover rate score.
+ * Rollover = pressing next key before releasing current key.
+ * Dhakal et al.: r=0.73 with WPM (strongest single predictor).
+ * Humans: 25% average, 50% for fast typists. Bots: 0%.
+ * Rescaled to [0.5, 1.0]: 0 rollovers → 0.5 (neutral).
+ */
+function scoreRolloverRate(rollovers: number, total: number): number {
+  if (total < MIN_ROLLOVER_SAMPLES) return 0.5;
+  const ratio = rollovers / total;
+  const raw = sigmoid(ratio, 60, 0.03);
+  const floor = sigmoid(0, 60, 0.03);
+  return 0.5 + 0.5 * (raw - floor) / (1 - floor);
+}
+
 export function createAnalyzer(config: AnalyzerConfig): Analyzer {
   const { minSamples, weights } = config;
 
@@ -159,6 +202,7 @@ export function createAnalyzer(config: AnalyzerConfig): Analyzer {
       dwellBuf: RingBuffer,
       flightBuf: RingBuffer,
       corrections: number,
+      rollovers: number,
       total: number,
     ): AnalyzerResult {
       const dwells = dwellBuf.toArray();
@@ -172,6 +216,7 @@ export function createAnalyzer(config: AnalyzerConfig): Analyzer {
         timingEntropy: scoreTimingEntropy(flights),
         correctionRatio: scoreCorrectionRatio(corrections, total),
         burstRegularity: scoreBurstRegularity(flights),
+        rolloverRate: scoreRolloverRate(rollovers, total),
       };
 
       const score = clamp(
@@ -179,7 +224,8 @@ export function createAnalyzer(config: AnalyzerConfig): Analyzer {
         weights.flightFit * metrics.flightFit +
         weights.timingEntropy * metrics.timingEntropy +
         weights.correctionRatio * metrics.correctionRatio +
-        weights.burstRegularity * metrics.burstRegularity,
+        weights.burstRegularity * metrics.burstRegularity +
+        weights.rolloverRate * metrics.rolloverRate,
         0,
         1,
       );

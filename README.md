@@ -127,7 +127,7 @@ import { vHumanCadence } from '@rolobits/is-human-cadence/vue';
 
 ## What it measures
 
-Five signals, combined into one score:
+Six signals, combined into one score:
 
 | Signal | What it checks | Human | Bot |
 |---|---|---|---|
@@ -136,6 +136,7 @@ Five signals, combined into one score:
 | **Timing entropy** | Randomness in rhythm | Moderate | Too uniform or too constant |
 | **Correction ratio** | Backspace/Delete usage | Human bonus (2–15%) | No signal (0%) |
 | **Burst regularity** | Pauses between typing bursts | Irregular | Metronomic |
+| **Rollover rate** | Key overlap (next pressed before previous released) | 25–50% | 0% |
 
 Each gets normalized to 0–1 and combined with configurable weights.
 
@@ -151,7 +152,7 @@ Because the absence of corrections is uninformative rather than suspicious, the 
 | 1–2% | 0.61–0.74 | Light human signal |
 | 5%+ | 0.96+ | Strong human signal |
 
-The other four metrics (dwell variance, flight fit, timing entropy, burst regularity) handle bot detection through timing analysis. Correction ratio only adds confidence when corrections are present — it never penalizes their absence.
+The other five metrics (dwell variance, flight fit, timing entropy, burst regularity, rollover rate) handle bot detection through timing analysis. Correction ratio only adds confidence when corrections are present — it never penalizes their absence.
 
 ## What it catches
 
@@ -161,6 +162,7 @@ The other four metrics (dwell variance, flight fit, timing entropy, burst regula
 | `setInterval` + `dispatchEvent` | Constant timing, zero entropy |
 | `Math.random()` jitter | Uniform distribution, no autocorrelation |
 | Recorded keystroke replay | No corrections, no natural pauses |
+| Sub-60ms sustained IKI | Physically impossible for humans (>120 WPM sustained) |
 
 ## API
 
@@ -197,11 +199,14 @@ Returns:
     timingEntropy: number;
     correctionRatio: number;
     burstRegularity: number;
+    rolloverRate: number;
   };
   signals: {
-    pasteDetected: boolean;    // paste event was detected
-    syntheticEvents: number;   // programmatic (non-user) events seen
-    insufficientData: boolean; // not enough samples to judge
+    pasteDetected: boolean;            // paste event was detected
+    syntheticEvents: number;           // programmatic (non-user) events seen
+    insufficientData: boolean;         // not enough samples to judge
+    inputWithoutKeystrokes: boolean;   // text entered via non-keyboard method
+    inputWithoutKeystrokeCount: number; // count of such events
   };
 }
 ```
@@ -210,11 +215,12 @@ Returns:
 
 ```ts
 {
-  dwellVariance:   0.15,
-  flightFit:       0.30,  // strongest signal
+  dwellVariance:   0.10,
+  flightFit:       0.25,
   timingEntropy:   0.20,
-  correctionRatio: 0.15,
-  burstRegularity: 0.20,
+  correctionRatio: 0.10,
+  burstRegularity: 0.15,
+  rolloverRate:    0.20,  // strongest human-only signal
 }
 ```
 

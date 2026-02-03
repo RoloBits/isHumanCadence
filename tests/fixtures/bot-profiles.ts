@@ -24,6 +24,7 @@ export function generateConstantBot(count: number): TimingData {
     dwells: Array(count).fill(50),
     flights: Array(count).fill(100),
     corrections: 0,
+    rollovers: 0,
     total: count,
   };
 }
@@ -35,6 +36,7 @@ export function generateRandomJitterBot(count: number, seed: number = 42): Timin
     dwells: Array.from({ length: count }, () => 30 + rng() * 40),
     flights: Array.from({ length: count }, () => 80 + rng() * 60),
     corrections: 0,
+    rollovers: 0,
     total: count,
   };
 }
@@ -46,6 +48,7 @@ export function generateGaussianBot(count: number, seed: number = 42): TimingDat
     dwells: Array.from({ length: count }, () => Math.max(10, 55 + normalRandom(rng) * 15)),
     flights: Array.from({ length: count }, () => Math.max(10, 120 + normalRandom(rng) * 30)),
     corrections: 0,
+    rollovers: 0,
     total: count,
   };
 }
@@ -56,6 +59,7 @@ export function generateReplayBot(humanData: TimingData): TimingData {
     dwells: [...humanData.dwells],
     flights: [...humanData.flights],
     corrections: 0,
+    rollovers: 0,
     total: humanData.total,
   };
 }

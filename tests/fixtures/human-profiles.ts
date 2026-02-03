@@ -50,5 +50,11 @@ export function generateHumanLike(count: number, seed: number = 123): TimingData
   const correctionRate = 0.03 + rng() * 0.12;
   const corrections = Math.floor(count * correctionRate);
 
-  return { dwells, flights, corrections, total: count };
+  // Rollover rate correlated with speed (faster typists overlap more)
+  const sorted = flights.slice().sort((a, b) => a - b);
+  const medianFlight = sorted[Math.floor(sorted.length / 2)];
+  const rolloverRate = medianFlight < 150 ? 0.2 + rng() * 0.3 : 0.05 + rng() * 0.1;
+  const rollovers = Math.floor(count * rolloverRate);
+
+  return { dwells, flights, corrections, rollovers, total: count };
 }

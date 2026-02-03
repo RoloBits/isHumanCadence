@@ -38,6 +38,7 @@ export function createCadence(
       timingEntropy: 0.5,
       correctionRatio: 0.5,
       burstRegularity: 0.5,
+      rolloverRate: 0.5,
     },
     sampleCount: 0,
     confident: false,
@@ -56,6 +57,7 @@ export function createCadence(
       state.dwells,
       state.flights,
       state.corrections,
+      state.rollovers,
       state.total,
     );
     lastResult = {
@@ -135,6 +137,7 @@ export function createCadence(
         timingEntropy: 0.5,
         correctionRatio: 0.5,
         burstRegularity: 0.5,
+        rolloverRate: 0.5,
       },
       sampleCount: 0,
       confident: false,

@@ -20,6 +20,7 @@ describe('createAnalyzer', () => {
       fillBuffer(human.dwells),
       fillBuffer(human.flights),
       human.corrections,
+      human.rollovers,
       human.total,
     );
     expect(result.confident).toBe(false);
@@ -33,6 +34,7 @@ describe('createAnalyzer', () => {
       fillBuffer(human.dwells),
       fillBuffer(human.flights),
       human.corrections,
+      human.rollovers,
       human.total,
     );
     expect(result.confident).toBe(true);
@@ -46,6 +48,7 @@ describe('createAnalyzer', () => {
       fillBuffer(human.dwells),
       fillBuffer(human.flights),
       human.corrections,
+      human.rollovers,
       human.total,
     );
     expect(result.score).toBeGreaterThan(0.5);
@@ -59,6 +62,7 @@ describe('createAnalyzer', () => {
       fillBuffer(bot.dwells),
       fillBuffer(bot.flights),
       bot.corrections,
+      bot.rollovers,
       bot.total,
     );
     expect(result.score).toBeLessThan(0.4);
@@ -72,6 +76,7 @@ describe('createAnalyzer', () => {
       fillBuffer(human.dwells),
       fillBuffer(human.flights),
       human.corrections,
+      human.rollovers,
       human.total,
     );
 
@@ -80,6 +85,7 @@ describe('createAnalyzer', () => {
       fillBuffer(bot.dwells),
       fillBuffer(bot.flights),
       bot.corrections,
+      bot.rollovers,
       bot.total,
     );
 
@@ -94,6 +100,7 @@ describe('createAnalyzer', () => {
       fillBuffer(human.dwells),
       fillBuffer(human.flights),
       human.corrections,
+      human.rollovers,
       human.total,
     );
 
@@ -102,6 +109,7 @@ describe('createAnalyzer', () => {
       fillBuffer(bot.dwells),
       fillBuffer(bot.flights),
       bot.corrections,
+      bot.rollovers,
       bot.total,
     );
 
@@ -116,6 +124,7 @@ describe('createAnalyzer', () => {
       fillBuffer(human.dwells),
       fillBuffer(human.flights),
       human.corrections,
+      human.rollovers,
       human.total,
     );
 
@@ -124,6 +133,7 @@ describe('createAnalyzer', () => {
       fillBuffer(bot.dwells),
       fillBuffer(bot.flights),
       bot.corrections,
+      bot.rollovers,
       bot.total,
     );
 
@@ -137,6 +147,7 @@ describe('createAnalyzer', () => {
       fillBuffer(human.dwells),
       fillBuffer(human.flights),
       human.corrections,
+      human.rollovers,
       human.total,
     );
 
@@ -160,6 +171,7 @@ describe('createAnalyzer', () => {
         fillBuffer(data.dwells),
         fillBuffer(data.flights),
         data.corrections,
+        data.rollovers,
         data.total,
       );
       expect(result.score).toBeGreaterThanOrEqual(0);
@@ -174,6 +186,7 @@ describe('createAnalyzer', () => {
       fillBuffer([48, 46, 50]),
       fillBuffer([]),
       0,
+      0,
       3,
     );
     expect(result.metrics.dwellVariance).toBe(0.5);
@@ -186,6 +199,7 @@ describe('createAnalyzer', () => {
       fillBuffer(human.dwells),
       fillBuffer(human.flights),
       human.corrections,
+      human.rollovers,
       human.total,
     );
     // With 10 samples (≥5), dwellVariance should be computed (not neutral 0.5)
@@ -195,21 +209,21 @@ describe('createAnalyzer', () => {
   it('zero corrections scores neutral regardless of sample size', () => {
     const corrOnlyWeights = {
       dwellVariance: 0, flightFit: 0, timingEntropy: 0,
-      correctionRatio: 1.0, burstRegularity: 0,
+      correctionRatio: 1.0, burstRegularity: 0, rolloverRate: 0,
     };
     const analyzer = createAnalyzer({ minSamples: 5, weights: corrOnlyWeights });
 
     // Short input
     const short = analyzer.analyze(
       fillBuffer(new Array(10).fill(50)),
-      fillBuffer(new Array(10).fill(100)), 0, 10,
+      fillBuffer(new Array(10).fill(100)), 0, 0, 10,
     );
     expect(short.score).toBe(0.5);
 
     // Long input — still neutral
     const long = analyzer.analyze(
       fillBuffer(new Array(100).fill(50)),
-      fillBuffer(new Array(100).fill(100)), 0, 100,
+      fillBuffer(new Array(100).fill(100)), 0, 0, 100,
     );
     expect(long.score).toBe(0.5);
   });
@@ -217,12 +231,12 @@ describe('createAnalyzer', () => {
   it('non-zero corrections score above neutral', () => {
     const corrOnlyWeights = {
       dwellVariance: 0, flightFit: 0, timingEntropy: 0,
-      correctionRatio: 1.0, burstRegularity: 0,
+      correctionRatio: 1.0, burstRegularity: 0, rolloverRate: 0,
     };
     const analyzer = createAnalyzer({ minSamples: 5, weights: corrOnlyWeights });
     const result = analyzer.analyze(
       fillBuffer(new Array(50).fill(50)),
-      fillBuffer(new Array(50).fill(100)), 3, 50,
+      fillBuffer(new Array(50).fill(100)), 3, 0, 50,
     );
     expect(result.score).toBeGreaterThan(0.9);
   });
@@ -235,6 +249,7 @@ describe('createAnalyzer', () => {
       timingEntropy: 0,
       correctionRatio: 1.0,
       burstRegularity: 0,
+      rolloverRate: 0,
     };
     const analyzer = createAnalyzer({ minSamples: 20, weights: corrOnlyWeights });
 
@@ -243,6 +258,7 @@ describe('createAnalyzer', () => {
       fillBuffer(human.dwells),
       fillBuffer(human.flights),
       human.corrections,
+      human.rollovers,
       human.total,
     );
 
@@ -251,10 +267,113 @@ describe('createAnalyzer', () => {
       fillBuffer(bot.dwells),
       fillBuffer(bot.flights),
       bot.corrections,
+      bot.rollovers,
       bot.total,
     );
 
     // Human has corrections → high score; bot has 0 corrections → low score
     expect(humanResult.score).toBeGreaterThan(botResult.score);
+  });
+
+  describe('rolloverRate', () => {
+    it('scores neutral (0.5) when total < 10', () => {
+      const analyzer = createAnalyzer(defaultConfig);
+      const result = analyzer.analyze(
+        fillBuffer(new Array(5).fill(50)),
+        fillBuffer(new Array(5).fill(100)),
+        0, 2, 5,
+      );
+      expect(result.metrics.rolloverRate).toBe(0.5);
+    });
+
+    it('zero rollovers scores neutral (0.5)', () => {
+      const rollOnlyWeights = {
+        dwellVariance: 0, flightFit: 0, timingEntropy: 0,
+        correctionRatio: 0, burstRegularity: 0, rolloverRate: 1.0,
+      };
+      const analyzer = createAnalyzer({ minSamples: 5, weights: rollOnlyWeights });
+      const result = analyzer.analyze(
+        fillBuffer(new Array(50).fill(50)),
+        fillBuffer(new Array(50).fill(100)),
+        0, 0, 50,
+      );
+      expect(result.score).toBe(0.5);
+    });
+
+    it('non-zero rollovers score above neutral', () => {
+      const rollOnlyWeights = {
+        dwellVariance: 0, flightFit: 0, timingEntropy: 0,
+        correctionRatio: 0, burstRegularity: 0, rolloverRate: 1.0,
+      };
+      const analyzer = createAnalyzer({ minSamples: 5, weights: rollOnlyWeights });
+      // 24% rollover rate (12 out of 50)
+      const result = analyzer.analyze(
+        fillBuffer(new Array(50).fill(50)),
+        fillBuffer(new Array(50).fill(100)),
+        0, 12, 50,
+      );
+      expect(result.score).toBeGreaterThan(0.9);
+    });
+  });
+
+  describe('IKI floor', () => {
+    it('penalizes sub-60ms median flights', () => {
+      const fitOnlyWeights = {
+        dwellVariance: 0, flightFit: 1.0, timingEntropy: 0,
+        correctionRatio: 0, burstRegularity: 0, rolloverRate: 0,
+      };
+      const analyzer = createAnalyzer({ minSamples: 5, weights: fitOnlyWeights });
+      // All flights ~30ms — physically impossible for sustained human typing
+      const result = analyzer.analyze(
+        fillBuffer(new Array(50).fill(50)),
+        fillBuffer(new Array(50).fill(30)),
+        0, 0, 50,
+      );
+      expect(result.metrics.flightFit).toBeLessThan(0.15);
+    });
+
+    it('does not penalize normal flights', () => {
+      const fitOnlyWeights = {
+        dwellVariance: 0, flightFit: 1.0, timingEntropy: 0,
+        correctionRatio: 0, burstRegularity: 0, rolloverRate: 0,
+      };
+      const analyzer = createAnalyzer({ minSamples: 5, weights: fitOnlyWeights });
+      const human = generateHumanLike(80);
+      const result = analyzer.analyze(
+        fillBuffer(human.dwells),
+        fillBuffer(human.flights),
+        human.corrections, human.rollovers, human.total,
+      );
+      // Human flights have median well above 60ms — no penalty
+      expect(result.metrics.flightFit).toBeGreaterThan(0.15);
+    });
+  });
+
+  describe('fluctuation ratio', () => {
+    it('narrow-range bot scores lower than wide-range human on timingEntropy', () => {
+      const entropyOnlyWeights = {
+        dwellVariance: 0, flightFit: 0, timingEntropy: 1.0,
+        correctionRatio: 0, burstRegularity: 0, rolloverRate: 0,
+      };
+      const analyzer = createAnalyzer({ minSamples: 5, weights: entropyOnlyWeights });
+
+      // Bot: narrow range (80–140ms), ratio ~1.75
+      const bot = generateRandomJitterBot(80);
+      const botResult = analyzer.analyze(
+        fillBuffer(bot.dwells),
+        fillBuffer(bot.flights),
+        bot.corrections, bot.rollovers, bot.total,
+      );
+
+      // Human: wide range with pauses, ratio typically 5–15+
+      const human = generateHumanLike(80);
+      const humanResult = analyzer.analyze(
+        fillBuffer(human.dwells),
+        fillBuffer(human.flights),
+        human.corrections, human.rollovers, human.total,
+      );
+
+      expect(humanResult.metrics.timingEntropy).toBeGreaterThan(botResult.metrics.timingEntropy);
+    });
   });
 });

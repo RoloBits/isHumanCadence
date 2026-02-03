@@ -378,7 +378,7 @@ describe('createObserver', () => {
       expect(state.total).toBe(0);
     });
 
-    it('filters key repeat events', () => {
+    it('filters key repeat events and skips dwell for held keys', () => {
       const obs = createObserver(target, { windowSize: 50 });
       obs.start();
 
@@ -398,7 +398,77 @@ describe('createObserver', () => {
 
       const state = obs.getState();
       expect(state.total).toBe(1); // only the initial press
-      expect(state.dwells.toArray()).toEqual([120]); // 1120 - 1000
+      expect(state.dwells.toArray()).toEqual([]); // dwell skipped — held key
+    });
+
+    it('records dwell normally after held key is released', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Hold 'a' with repeat
+      now = 1000;
+      fireKey(target, 'keydown', 'a');
+      now = 1050;
+      fireKey(target, 'keydown', 'a', { repeat: true });
+      now = 1100;
+      fireKey(target, 'keydown', 'a', { repeat: true });
+      now = 1120;
+      fireKey(target, 'keyup', 'a');
+
+      // Type 'b' normally
+      now = 1200;
+      fireKey(target, 'keydown', 'b');
+      now = 1240;
+      fireKey(target, 'keyup', 'b');
+
+      const state = obs.getState();
+      expect(state.dwells.toArray()).toEqual([40]); // only 'b' dwell recorded
+      expect(state.flights.toArray()).toEqual([80]); // 1200 - 1120
+    });
+
+    it('counts corrections for held Backspace but skips dwell', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Hold Backspace: 1 initial + 3 repeats
+      now = 1000;
+      fireKey(target, 'keydown', 'Backspace');
+      now = 1030;
+      fireKey(target, 'keydown', 'Backspace', { repeat: true });
+      now = 1060;
+      fireKey(target, 'keydown', 'Backspace', { repeat: true });
+      now = 1090;
+      fireKey(target, 'keydown', 'Backspace', { repeat: true });
+      now = 1100;
+      fireKey(target, 'keyup', 'Backspace');
+
+      const state = obs.getState();
+      expect(state.corrections).toBe(4); // each keydown counts
+      expect(state.total).toBe(1); // only the initial press
+      expect(state.dwells.toArray()).toEqual([]); // dwell skipped
+    });
+
+    it('hadRepeat resets on clear()', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Hold 'a' with repeat (hadRepeat becomes true)
+      now = 1000;
+      fireKey(target, 'keydown', 'a');
+      now = 1050;
+      fireKey(target, 'keydown', 'a', { repeat: true });
+
+      // Clear mid-hold
+      obs.clear();
+
+      // Type 'b' normally — dwell should be recorded
+      now = 1200;
+      fireKey(target, 'keydown', 'b');
+      now = 1240;
+      fireKey(target, 'keyup', 'b');
+
+      const state = obs.getState();
+      expect(state.dwells.toArray()).toEqual([40]);
     });
 
     it('does NOT filter Shift+char (normal uppercase typing)', () => {
@@ -499,6 +569,78 @@ describe('createObserver', () => {
       const state = obs.getState();
       expect(state.dwells.toArray()).toEqual([50]);
       expect(state.total).toBe(1);
+    });
+  });
+
+  describe('rollover detection', () => {
+    it('counts rollover when next key pressed before previous released', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Press 'a', then press 'b' before releasing 'a'
+      now = 1000;
+      fireKey(target, 'keydown', 'a');
+      now = 1030;
+      fireKey(target, 'keydown', 'b'); // activeKeys becomes 2 → rollover++
+      now = 1050;
+      fireKey(target, 'keyup', 'a');
+      now = 1070;
+      fireKey(target, 'keyup', 'b');
+
+      expect(obs.getState().rollovers).toBe(1);
+    });
+
+    it('no rollover for sequential keystrokes', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Press 'a', release 'a', then press 'b'
+      now = 1000;
+      fireKey(target, 'keydown', 'a');
+      now = 1050;
+      fireKey(target, 'keyup', 'a');
+      now = 1120;
+      fireKey(target, 'keydown', 'b');
+      now = 1170;
+      fireKey(target, 'keyup', 'b');
+
+      expect(obs.getState().rollovers).toBe(0);
+    });
+
+    it('clear() resets rollovers to 0', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      now = 1000;
+      fireKey(target, 'keydown', 'a');
+      now = 1020;
+      fireKey(target, 'keydown', 'b');
+      now = 1040;
+      fireKey(target, 'keyup', 'a');
+      now = 1060;
+      fireKey(target, 'keyup', 'b');
+
+      expect(obs.getState().rollovers).toBe(1);
+
+      obs.clear();
+      expect(obs.getState().rollovers).toBe(0);
+    });
+
+    it('modifier combos do not count as rollovers', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Cmd+C: modifier keys are filtered, should not increment rollovers
+      now = 1000;
+      fireKey(target, 'keydown', 'Meta', { metaKey: true });
+      now = 1020;
+      fireKey(target, 'keydown', 'c', { metaKey: true });
+      now = 1050;
+      fireKey(target, 'keyup', 'c', { metaKey: true });
+      now = 1070;
+      fireKey(target, 'keyup', 'Meta');
+
+      expect(obs.getState().rollovers).toBe(0);
     });
   });
 

@@ -32,6 +32,11 @@ const METRIC_INFO: { key: keyof MetricScores; label: string; tooltip: string }[]
     label: 'Burst Regularity',
     tooltip: 'Variation in pauses between typing bursts. Humans pause unevenly. Bots are metronomic.',
   },
+  {
+    key: 'rolloverRate',
+    label: 'Rollover Rate',
+    tooltip: 'Key overlap — pressing the next key before releasing the current one. Skilled typists: 25–50%. Bots: 0%.',
+  },
 ];
 
 interface MetricBreakdownProps {

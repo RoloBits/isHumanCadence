@@ -4,6 +4,7 @@ export interface MetricWeights {
   timingEntropy: number;
   correctionRatio: number;
   burstRegularity: number;
+  rolloverRate: number;
 }
 
 export interface MetricScores {
@@ -12,6 +13,7 @@ export interface MetricScores {
   timingEntropy: number;
   correctionRatio: number;
   burstRegularity: number;
+  rolloverRate: number;
 }
 
 export interface CadenceSignals {
@@ -71,5 +73,6 @@ export interface TimingData {
   dwells: number[];
   flights: number[];
   corrections: number;
+  rollovers: number;
   total: number;
 }
