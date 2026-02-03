@@ -1,5 +1,176 @@
-import { useState, useRef, useEffect } from 'react';
-import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+/* ------------------------------------------------------------------ */
+/*  Web Speech API type declarations (not in all TS lib configs)      */
+/* ------------------------------------------------------------------ */
+
+interface SpeechRecognitionResultItem {
+  readonly transcript: string;
+  readonly confidence: number;
+}
+
+interface SpeechRecognitionResult {
+  readonly isFinal: boolean;
+  readonly length: number;
+  [index: number]: SpeechRecognitionResultItem;
+}
+
+interface SpeechRecognitionResultList {
+  readonly length: number;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  readonly results: SpeechRecognitionResultList;
+  readonly resultIndex: number;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  readonly error: string;
+  readonly message: string;
+}
+
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: ((this: SpeechRecognitionInstance, ev: Event) => void) | null;
+  onresult: ((this: SpeechRecognitionInstance, ev: SpeechRecognitionEvent) => void) | null;
+  onend: ((this: SpeechRecognitionInstance, ev: Event) => void) | null;
+  onerror: ((this: SpeechRecognitionInstance, ev: SpeechRecognitionErrorEvent) => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognitionInstance;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Native Web Speech API hook                                        */
+/* ------------------------------------------------------------------ */
+
+function useNativeSpeechRecognition() {
+  const [listening, setListening] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [finalTranscript, setFinalTranscript] = useState('');
+
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const shouldListenRef = useRef(false);
+
+  const SR =
+    typeof window !== 'undefined'
+      ? window.SpeechRecognition || window.webkitSpeechRecognition
+      : undefined;
+
+  const browserSupportsSpeechRecognition = !!SR;
+
+  // Create recognition instance once on mount
+  useEffect(() => {
+    if (!SR) return;
+
+    const recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => setListening(true);
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = '';
+      let final = '';
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          final += result[0].transcript;
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+      setFinalTranscript(final);
+      setInterimTranscript(interim);
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+      // Auto-restart if user still wants to listen (browser may stop mid-sentence)
+      if (shouldListenRef.current) {
+        try {
+          recognition.start();
+        } catch {
+          // Already started or other error — ignore
+        }
+      }
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      // no-speech and aborted are non-fatal
+      if (event.error === 'no-speech' || event.error === 'aborted') return;
+      shouldListenRef.current = false;
+      setListening(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      shouldListenRef.current = false;
+      recognition.onstart = null;
+      recognition.onresult = null;
+      recognition.onend = null;
+      recognition.onerror = null;
+      try {
+        recognition.stop();
+      } catch {
+        // ignore
+      }
+    };
+  }, [SR]);
+
+  const startListening = useCallback(() => {
+    const recognition = recognitionRef.current;
+    if (!recognition) return;
+    shouldListenRef.current = true;
+    try {
+      recognition.start();
+    } catch {
+      // Already started — ignore
+    }
+  }, []);
+
+  const stopListening = useCallback(() => {
+    const recognition = recognitionRef.current;
+    if (!recognition) return;
+    shouldListenRef.current = false;
+    try {
+      recognition.stop();
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const resetTranscript = useCallback(() => {
+    setFinalTranscript('');
+    setInterimTranscript('');
+  }, []);
+
+  return {
+    listening,
+    interimTranscript,
+    finalTranscript,
+    browserSupportsSpeechRecognition,
+    startListening,
+    stopListening,
+    resetTranscript,
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /*  SignupForm                                                        */
@@ -31,22 +202,24 @@ export function SignupForm({
     resetTranscript,
     listening,
     browserSupportsSpeechRecognition,
-  } = useSpeechRecognition();
+    startListening,
+    stopListening,
+  } = useNativeSpeechRecognition();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const focusedFieldRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(
     null,
   );
   const interimLenRef = useRef(0);
-  const prevFinalRef = useRef('');
+  const processedLenRef = useRef(0);
 
   /* — mode switch -------------------------------------------------- */
 
   function switchMode(next: 'single' | 'form') {
     if (next === mode) return;
-    SpeechRecognition.stopListening();
+    stopListening();
     resetTranscript();
-    prevFinalRef.current = '';
+    processedLenRef.current = 0;
     setMode(next);
     setFreetext('');
     setForm({ name: '', email: '', password: '', bio: '' });
@@ -68,13 +241,14 @@ export function SignupForm({
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) {
+    if (!e.nativeEvent.isTrusted) return;
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
   function handleReset() {
-    SpeechRecognition.stopListening();
+    stopListening();
     resetTranscript();
-    prevFinalRef.current = '';
+    processedLenRef.current = 0;
     setFreetext('');
     setForm({ name: '', email: '', password: '', bio: '' });
     interimLenRef.current = 0;
@@ -103,11 +277,11 @@ export function SignupForm({
     }
 
     // Dispatch synthetic DOM events so the observer detects dictation signals.
-    // 1) input without recent keydown → triggers inputWithoutKeystrokes
-    // 2) synthetic keydown (isTrusted=false) → increments syntheticEvents
+    // 1) input without recent keydown -> triggers inputWithoutKeystrokes
+    // 2) synthetic keydown (isTrusted=false) -> increments syntheticEvents
     //    ctrlKey:true makes observer skip timing data collection
     // 3) matching keyup to decrement pendingFilteredUps
-    const el = textareaRef.current;
+    const el = mode === 'single' ? textareaRef.current : focusedFieldRef.current;
     if (el) {
       el.dispatchEvent(new InputEvent('input', { bubbles: true }));
       el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ctrlKey: true }));
@@ -118,10 +292,10 @@ export function SignupForm({
   // Handle finalized speech results
   useEffect(() => {
     if (!finalTranscript) return;
-    const newText = finalTranscript.slice(prevFinalRef.current.length);
+    const newText = finalTranscript.slice(processedLenRef.current);
     if (!newText) return;
     applyTranscriptUpdate(newText, true);
-    prevFinalRef.current = finalTranscript;
+    processedLenRef.current = finalTranscript.length;
   }, [finalTranscript]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle interim (partial) speech results
@@ -132,12 +306,12 @@ export function SignupForm({
 
   function toggleDictation() {
     if (listening) {
-      SpeechRecognition.stopListening();
+      stopListening();
       interimLenRef.current = 0;
     } else {
       interimLenRef.current = 0;
-      prevFinalRef.current = finalTranscript; // Anchor to current position
-      SpeechRecognition.startListening({ continuous: true });
+      processedLenRef.current = finalTranscript.length;
+      startListening();
     }
   }
 
@@ -178,7 +352,10 @@ export function SignupForm({
                 className="single-input"
                 name="freetext"
                 value={freetext}
-                onChange={(e) => setFreetext(e.target.value)}
+                onChange={(e) => {
+                  if (!e.nativeEvent.isTrusted) return;
+                  setFreetext(e.target.value);
+                }}
                 rows={6}
                 placeholder="Start typing to see your humanity score rise..."
                 autoComplete="off"

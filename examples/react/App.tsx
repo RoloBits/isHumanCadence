@@ -34,7 +34,7 @@ export function App() {
 
       <footer>
         <a
-          href="https://github.com/ApoloDev/isHumanCadence"
+          href="https://github.com/RoloBits/isHumanCadence"
           target="_blank"
           rel="noopener"
         >
