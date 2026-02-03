@@ -260,6 +260,41 @@ button:disabled {
   white-space: nowrap;
 }
 
+.has-tooltip {
+  position: relative;
+  cursor: help;
+  text-decoration: underline dotted var(--text-muted);
+  text-underline-offset: 3px;
+}
+
+.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  width: 240px;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 10;
+}
+
+.has-tooltip:hover::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .metric-bar {
   height: 8px;
   background: var(--bg);
