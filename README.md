@@ -134,10 +134,24 @@ Five signals, combined into one score:
 | **Dwell variance** | How much key-hold durations vary | Varies naturally | Nearly identical |
 | **Flight fit** | Whether inter-key timing follows a natural curve | Yes | Flat/constant |
 | **Timing entropy** | Randomness in rhythm | Moderate | Too uniform or too constant |
-| **Correction ratio** | Backspace/Delete usage | 2–15% | 0% or suspiciously exact |
+| **Correction ratio** | Backspace/Delete usage | Human bonus (2–15%) | No signal (0%) |
 | **Burst regularity** | Pauses between typing bursts | Irregular | Metronomic |
 
 Each gets normalized to 0–1 and combined with configurable weights.
+
+### Correction ratio as a human bonus
+
+Corrections are a one-directional human signal — bots don't backspace. The [Aalto 136M Keystrokes study (Dhakal et al., CHI 2018)](https://doi.org/10.1145/3173574.3174220) shows correction rates vary enormously across typists: fast typists average 3.4% (SD 2.05%), slow typists average 9.05% (SD 6.85%). Zero corrections over 50 keystrokes is normal for roughly half of skilled typists.
+
+Because the absence of corrections is uninformative rather than suspicious, the metric scores on a `[0.5, 1.0]` range:
+
+| Corrections | Score | Interpretation |
+|---|---|---|
+| 0% | **0.50** | Neutral — no signal either way |
+| 1–2% | 0.61–0.74 | Light human signal |
+| 5%+ | 0.96+ | Strong human signal |
+
+The other four metrics (dwell variance, flight fit, timing entropy, burst regularity) handle bot detection through timing analysis. Correction ratio only adds confidence when corrections are present — it never penalizes their absence.
 
 ## What it catches
 

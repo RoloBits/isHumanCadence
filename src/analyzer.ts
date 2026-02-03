@@ -11,6 +11,32 @@ export const DEFAULT_WEIGHTS: MetricWeights = {
   burstRegularity: 0.20,
 };
 
+/** Minimum dwell samples for variance scoring.
+ *  With n<5, population stddev has ≤3 degrees of freedom —
+ *  the 95% CI is [0.45σ̂, 31.9σ̂] at n=2, narrowing to [0.60σ̂, 2.87σ̂] at n=5. */
+const MIN_DWELL_SAMPLES = 5;
+
+/** Minimum flight samples for distribution fitting.
+ *  The KS test requires ≥5 observations to reliably distinguish
+ *  log-normal (human) from uniform (bot) distributions. */
+const MIN_FLIGHT_SAMPLES = 5;
+
+/** Minimum flight samples for entropy scoring.
+ *  Shannon entropy over 10 bins needs ≥5 samples to avoid
+ *  degenerate single-bin distributions that read as zero entropy. */
+const MIN_ENTROPY_SAMPLES = 5;
+
+/** Minimum total keystrokes for correction ratio scoring.
+ *  With fewer than 5 keystrokes, the ratio corrections/total
+ *  swings wildly (e.g. 1/3 = 33%) and is not indicative. */
+const MIN_CORRECTION_SAMPLES = 5;
+
+/** Minimum flight samples for burst regularity scoring.
+ *  Burst detection needs enough inter-key flights to observe ≥2
+ *  inter-burst gaps (threshold: 300ms), which typically requires ~10 flights. */
+const MIN_BURST_SAMPLES = 10;
+
+
 export interface AnalyzerResult {
   score: number;
   metrics: MetricScores;
@@ -38,7 +64,7 @@ export interface Analyzer {
  * Sigmoid centered at 25ms, scoring human-range high.
  */
 function scoreDwellVariance(dwells: number[]): number {
-  if (dwells.length < 2) return 0.5;
+  if (dwells.length < MIN_DWELL_SAMPLES) return 0.5;
   const sd = stddev(dwells);
   // Too low (< 5ms) → bot, sweet spot ~15–60ms → human, too high → noise
   // Use a bell-like shape: sigmoid up then sigmoid down
@@ -53,7 +79,7 @@ function scoreDwellVariance(dwells: number[]): number {
  * Returns the genuineScore directly.
  */
 function scoreFlightFit(flights: number[]): number {
-  if (flights.length < 5) return 0.5;
+  if (flights.length < MIN_FLIGHT_SAMPLES) return 0.5;
   const result = detectSpoof(flights);
   return result.genuineScore;
 }
@@ -65,7 +91,7 @@ function scoreFlightFit(flights: number[]): number {
  * Bell-shaped scoring centered around 3.0 bits.
  */
 function scoreTimingEntropy(flights: number[]): number {
-  if (flights.length < 5) return 0.5;
+  if (flights.length < MIN_ENTROPY_SAMPLES) return 0.5;
   const entropy = shannonEntropy(flights, 10);
   // Sweet spot is ~2.0–3.5 bits
   const up = sigmoid(entropy, 3, 1.5);   // ramps up around 1.5 bits
@@ -75,15 +101,22 @@ function scoreTimingEntropy(flights: number[]): number {
 
 /**
  * Correction ratio score.
- * Humans: 2–15% correction rate. Bots: 0% (never correct) or exact value.
+ * Corrections are a positive human signal — bots don't backspace.
+ * Absence of corrections is uninformative, not penalizing.
+ * Rescaled to [0.5, 1.0]: 0 corrections → 0.5 (neutral).
+ *
+ * Aalto 136M study (Dhakal et al., CHI 2018): correction rates vary widely
+ * (fast typists: 3.4% ± 2.05%, slow: 9.05% ± 6.85%). Zero corrections
+ * over 50+ keystrokes is normal for ~50% of skilled typists.
  */
 function scoreCorrectionRatio(corrections: number, total: number): number {
-  if (total < 5) return 0.5;
+  if (total < MIN_CORRECTION_SAMPLES) return 0.5;
   const ratio = corrections / total;
-  // 0% → likely bot, 2–15% → human, >20% → either human or noise
-  // Sigmoid ramps up: having *some* corrections is very human
-  const score = sigmoid(ratio, 80, 0.015);
-  // Slight penalty for impossibly high correction rates (>30%)
+  const raw = sigmoid(ratio, 80, 0.015);
+  // Rescale from [floor, 1] → [0.5, 1] where floor = sigmoid(0) ≈ 0.231
+  const floor = sigmoid(0, 80, 0.015);
+  const score = 0.5 + 0.5 * (raw - floor) / (1 - floor);
+  // Excessive corrections (>30%) → slight penalty
   return ratio > 0.3 ? score * 0.8 : score;
 }
 
@@ -96,7 +129,7 @@ function scoreCorrectionRatio(corrections: number, total: number): number {
  * Then measure σ of burst gaps — high σ = human.
  */
 function scoreBurstRegularity(flights: number[]): number {
-  if (flights.length < 10) return 0.5;
+  if (flights.length < MIN_BURST_SAMPLES) return 0.5;
 
   const BURST_THRESHOLD = 300;
   const burstGaps: number[] = [];

@@ -167,6 +167,66 @@ describe('createAnalyzer', () => {
     }
   });
 
+  it('returns neutral 0.5 for dwellVariance when n < 5', () => {
+    const analyzer = createAnalyzer(defaultConfig);
+    // Only 3 dwell samples — below the n≥5 threshold
+    const result = analyzer.analyze(
+      fillBuffer([48, 46, 50]),
+      fillBuffer([]),
+      0,
+      3,
+    );
+    expect(result.metrics.dwellVariance).toBe(0.5);
+  });
+
+  it('computes dwellVariance when n >= 5', () => {
+    const analyzer = createAnalyzer(defaultConfig);
+    const human = generateHumanLike(10);
+    const result = analyzer.analyze(
+      fillBuffer(human.dwells),
+      fillBuffer(human.flights),
+      human.corrections,
+      human.total,
+    );
+    // With 10 samples (≥5), dwellVariance should be computed (not neutral 0.5)
+    expect(result.metrics.dwellVariance).not.toBe(0.5);
+  });
+
+  it('zero corrections scores neutral regardless of sample size', () => {
+    const corrOnlyWeights = {
+      dwellVariance: 0, flightFit: 0, timingEntropy: 0,
+      correctionRatio: 1.0, burstRegularity: 0,
+    };
+    const analyzer = createAnalyzer({ minSamples: 5, weights: corrOnlyWeights });
+
+    // Short input
+    const short = analyzer.analyze(
+      fillBuffer(new Array(10).fill(50)),
+      fillBuffer(new Array(10).fill(100)), 0, 10,
+    );
+    expect(short.score).toBe(0.5);
+
+    // Long input — still neutral
+    const long = analyzer.analyze(
+      fillBuffer(new Array(100).fill(50)),
+      fillBuffer(new Array(100).fill(100)), 0, 100,
+    );
+    expect(long.score).toBe(0.5);
+  });
+
+  it('non-zero corrections score above neutral', () => {
+    const corrOnlyWeights = {
+      dwellVariance: 0, flightFit: 0, timingEntropy: 0,
+      correctionRatio: 1.0, burstRegularity: 0,
+    };
+    const analyzer = createAnalyzer({ minSamples: 5, weights: corrOnlyWeights });
+    const result = analyzer.analyze(
+      fillBuffer(new Array(50).fill(50)),
+      fillBuffer(new Array(50).fill(100)), 3, 50,
+    );
+    expect(result.score).toBeGreaterThan(0.9);
+  });
+
   it('respects custom weights', () => {
     // Weight only correction ratio — human has corrections, bot does not
     const corrOnlyWeights = {
