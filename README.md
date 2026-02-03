@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="https://rolobits.github.io/isHumanCadence/">
-    <img src="https://img.shields.io/badge/%E2%96%B6%20Live%20Demo-Try%20it%20out-blueviolet?style=for-the-badge" alt="Live Demo">
+    <img src="https://img.shields.io/badge/%E2%96%B6%20React%20Demo-Try%20it%20out-blueviolet?style=for-the-badge" alt="React Demo">
   </a>
 </p>
 
@@ -70,6 +70,29 @@ function LoginForm() {
     <form>
       <input ref={ref} type="email" />
       {confident && score < 0.3 && <CaptchaChallenge />}
+    </form>
+  );
+}
+```
+
+**Multi-field forms** — attach `ref` to a wrapper element instead of a single input. Keyboard events bubble up from child fields, so one hook covers the entire form.
+
+```tsx
+import { useHumanCadence } from '@rolobits/is-human-cadence/react';
+
+function SignupForm() {
+  const { ref, score, confident } = useHumanCadence({ minSamples: 20 });
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div ref={ref}>
+        <input type="text" name="name" placeholder="Name" />
+        <input type="email" name="email" placeholder="Email" />
+        <input type="password" name="password" placeholder="Password" />
+      </div>
+      <button type="submit" disabled={!confident || score < 0.5}>
+        Sign Up
+      </button>
     </form>
   );
 }
@@ -144,7 +167,7 @@ Returns:
 | `start()` | Begin listening |
 | `stop()` | Pause (keeps data) |
 | `analyze()` | Get score now |
-| `reset()` | Clear everything |
+| `reset()` | Clear data, keep listening |
 | `destroy()` | Stop + cleanup |
 
 ### `CadenceResult`
@@ -160,7 +183,12 @@ Returns:
     timingEntropy: number;
     correctionRatio: number;
     burstRegularity: number;
-  }
+  };
+  signals: {
+    pasteDetected: boolean;    // paste event was detected
+    syntheticEvents: number;   // programmatic (non-user) events seen
+    insufficientData: boolean; // not enough samples to judge
+  };
 }
 ```
 
@@ -186,6 +214,36 @@ Can't be used as a keylogger — it doesn't know which keys you press.
 
 The only place `event.key` is read is a boolean check for Backspace/Delete — the value is never stored.
 
+## Accessibility
+
+This library analyzes keystroke timing. Some assistive technologies (voice-to-text,
+switch access, eye-tracking keyboards) produce timing patterns that score low —
+not because the user is a bot, but because the input method is different.
+
+**The score is a signal, not a verdict.** Don't block users based on score alone.
+
+Recommended pattern:
+
+```ts
+onScore(result) {
+  if (!result.confident) return;             // not enough data yet
+  if (result.signals.syntheticEvents > 0) return; // programmatic input, skip
+  if (result.score < 0.3) {
+    showFallbackChallenge();                 // email verify, simple question, etc.
+  }
+}
+```
+
+What works well:
+- **Screen readers + physical keyboard** — scores normally (modifier keys are filtered)
+- **On-screen keyboards** — scores normally
+
+What may score low:
+- **Voice-to-text** — few or no keydown/keyup events fire (`confident` stays false)
+- **Switch access** — regular timing looks bot-like
+- **Password managers** — synthetic events or paste
+
+Use `result.signals` to understand *why* a score is low before acting on it.
 
 ## Contributing
 

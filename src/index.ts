@@ -2,7 +2,7 @@ import type { Cadence, CadenceConfig, CadenceResult } from './types';
 import { createObserver } from './observer';
 import { createAnalyzer, DEFAULT_WEIGHTS } from './analyzer';
 
-export type { Cadence, CadenceConfig, CadenceResult, MetricWeights, MetricScores, TimingData } from './types';
+export type { Cadence, CadenceConfig, CadenceResult, CadenceSignals, MetricWeights, MetricScores, TimingData } from './types';
 export { DEFAULT_WEIGHTS } from './analyzer';
 
 const DEFAULT_WINDOW_SIZE = 50;
@@ -41,16 +41,31 @@ export function createCadence(
     },
     sampleCount: 0,
     confident: false,
+    signals: {
+      pasteDetected: false,
+      syntheticEvents: 0,
+      insufficientData: true,
+      inputWithoutKeystrokes: false,
+    },
   };
 
   function computeScore() {
     const state = observer.getState();
-    lastResult = analyzer.analyze(
+    const base = analyzer.analyze(
       state.dwells,
       state.flights,
       state.corrections,
       state.total,
     );
+    lastResult = {
+      ...base,
+      signals: {
+        pasteDetected: state.pasteDetected,
+        syntheticEvents: state.syntheticEvents,
+        insufficientData: base.sampleCount < minSamples,
+        inputWithoutKeystrokes: state.inputWithoutKeystrokes,
+      },
+    };
     dirty = false;
     onScore?.(lastResult);
   }
@@ -106,7 +121,7 @@ export function createCadence(
   }
 
   function reset() {
-    observer.destroy();
+    observer.clear();
     dirty = false;
     if (idleHandle !== undefined) { cancelIdleCallback(idleHandle); idleHandle = undefined; }
     if (timeoutHandle !== undefined) { clearTimeout(timeoutHandle); timeoutHandle = undefined; }
@@ -121,6 +136,12 @@ export function createCadence(
       },
       sampleCount: 0,
       confident: false,
+      signals: {
+        pasteDetected: false,
+        syntheticEvents: 0,
+        insufficientData: true,
+        inputWithoutKeystrokes: false,
+      },
     };
   }
 

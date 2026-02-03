@@ -11,11 +11,14 @@ export interface ObserverState {
   corrections: number;
   total: number;
   pasteDetected: boolean;
+  syntheticEvents: number;
+  inputWithoutKeystrokes: boolean;
 }
 
 export interface Observer {
   start(): void;
   stop(): void;
+  clear(): void;
   destroy(): void;
   getState(): ObserverState;
 }
@@ -34,6 +37,9 @@ export function createObserver(
   let corrections = 0;
   let total = 0;
   let pasteDetected = false;
+  let syntheticEvents = 0;
+  let inputWithoutKeystrokes = false;
+  let lastKeydownTime = 0;
 
   // Track press timestamps by key code-agnostic slot.
   // We use a single "last press" timestamp since we only care about
@@ -46,7 +52,11 @@ export function createObserver(
 
   const onKeyDown = (e: Event) => {
     const now = performance.now();
+    lastKeydownTime = now;
     const ke = e as KeyboardEvent;
+
+    // Count programmatically dispatched events (isTrusted is false)
+    if (!e.isTrusted) syntheticEvents++;
 
     // Correction check — runs before modifier filter so Ctrl+Backspace still counts
     if (ke.key === 'Backspace' || ke.key === 'Delete') {
@@ -93,6 +103,12 @@ export function createObserver(
     pasteDetected = true;
   };
 
+  const onInput = () => {
+    if (performance.now() - lastKeydownTime > 50) {
+      inputWithoutKeystrokes = true;
+    }
+  };
+
   const listenerOpts: AddEventListenerOptions = { passive: true, capture: false };
   let listening = false;
 
@@ -101,6 +117,7 @@ export function createObserver(
     target.addEventListener('keydown', onKeyDown, listenerOpts);
     target.addEventListener('keyup', onKeyUp, listenerOpts);
     target.addEventListener('paste', onPaste, listenerOpts);
+    target.addEventListener('input', onInput, listenerOpts);
     listening = true;
   }
 
@@ -109,25 +126,33 @@ export function createObserver(
     target.removeEventListener('keydown', onKeyDown);
     target.removeEventListener('keyup', onKeyUp);
     target.removeEventListener('paste', onPaste);
+    target.removeEventListener('input', onInput);
     listening = false;
   }
 
-  function destroy() {
-    stop();
+  function clear() {
     dwells.clear();
     flights.clear();
     corrections = 0;
     total = 0;
     pasteDetected = false;
+    syntheticEvents = 0;
+    inputWithoutKeystrokes = false;
+    lastKeydownTime = 0;
     lastPressTime = 0;
     lastReleaseTime = 0;
     activeKeys = 0;
     pendingFilteredUps = 0;
   }
 
-  function getState(): ObserverState {
-    return { dwells, flights, corrections, total, pasteDetected };
+  function destroy() {
+    stop();
+    clear();
   }
 
-  return { start, stop, destroy, getState };
+  function getState(): ObserverState {
+    return { dwells, flights, corrections, total, pasteDetected, syntheticEvents, inputWithoutKeystrokes };
+  }
+
+  return { start, stop, clear, destroy, getState };
 }

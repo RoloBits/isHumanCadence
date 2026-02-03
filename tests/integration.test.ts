@@ -148,7 +148,7 @@ describe('createCadence integration', () => {
     cadence.destroy();
   });
 
-  it('reset() clears all state', () => {
+  it('reset() clears all state but keeps listening', () => {
     const cadence = createCadence(target, { scheduling: 'manual' });
     cadence.start();
 
@@ -160,6 +160,10 @@ describe('createCadence integration', () => {
     expect(result.sampleCount).toBe(0);
     expect(result.confident).toBe(false);
     expect(result.score).toBe(0.5);
+
+    // Listeners survived reset — new keystrokes are captured
+    typeSequence(target, humanTimings(5), mockNow.value + 100, mockNow);
+    expect(cadence.analyze().sampleCount).toBeGreaterThan(0);
 
     cadence.destroy();
   });
@@ -243,6 +247,83 @@ describe('createCadence integration', () => {
     // Score should not drop significantly due to the shortcut
     expect(scoreAfter).toBeGreaterThan(0.5);
     expect(scoreAfter).toBeGreaterThan(scoreBefore - 0.1);
+
+    cadence.destroy();
+  });
+
+  it('result includes signals with correct shape', () => {
+    const cadence = createCadence(target, { scheduling: 'manual' });
+    cadence.start();
+
+    const result = cadence.analyze();
+    expect(result).toHaveProperty('signals');
+    expect(result.signals).toEqual({
+      pasteDetected: false,
+      syntheticEvents: expect.any(Number),
+      insufficientData: true,
+      inputWithoutKeystrokes: false,
+    });
+
+    cadence.destroy();
+  });
+
+  it('signals.insufficientData reflects minSamples threshold', () => {
+    const cadence = createCadence(target, { scheduling: 'manual', minSamples: 10 });
+    cadence.start();
+
+    // Type 9 keys — insufficient
+    typeSequence(target, humanTimings(9), 1000, mockNow);
+    expect(cadence.analyze().signals.insufficientData).toBe(true);
+
+    // Type 2 more — sufficient (11 dwells >= 10)
+    typeSequence(target, humanTimings(3).slice(0, 2), mockNow.value + 100, mockNow);
+    expect(cadence.analyze().signals.insufficientData).toBe(false);
+
+    cadence.destroy();
+  });
+
+  it('signals.pasteDetected is true after paste event', () => {
+    const cadence = createCadence(target, { scheduling: 'manual' });
+    cadence.start();
+
+    target.dispatchEvent(new Event('paste'));
+    const result = cadence.analyze();
+    expect(result.signals.pasteDetected).toBe(true);
+
+    cadence.destroy();
+  });
+
+  it('signals.syntheticEvents counts dispatched events', () => {
+    const cadence = createCadence(target, { scheduling: 'manual' });
+    cadence.start();
+
+    // dispatchEvent produces isTrusted: false
+    typeSequence(target, humanTimings(5), 1000, mockNow);
+    const result = cadence.analyze();
+    expect(result.signals.syntheticEvents).toBe(5);
+
+    cadence.destroy();
+  });
+
+  it('reset() resets signals to defaults and keeps listening', () => {
+    const cadence = createCadence(target, { scheduling: 'manual' });
+    cadence.start();
+
+    target.dispatchEvent(new Event('paste'));
+    typeSequence(target, humanTimings(5), 1000, mockNow);
+
+    cadence.reset();
+    const result = cadence.analyze();
+    expect(result.signals).toEqual({
+      pasteDetected: false,
+      syntheticEvents: 0,
+      insufficientData: true,
+      inputWithoutKeystrokes: false,
+    });
+
+    // Listeners survived reset — new keystrokes are captured
+    typeSequence(target, humanTimings(3), mockNow.value + 100, mockNow);
+    expect(cadence.analyze().sampleCount).toBeGreaterThan(0);
 
     cadence.destroy();
   });

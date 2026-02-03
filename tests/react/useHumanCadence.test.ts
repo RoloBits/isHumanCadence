@@ -23,6 +23,8 @@ describe('useHumanCadence', () => {
 
     expect(result.current.score).toBe(0.5);
     expect(result.current.confident).toBe(false);
+    expect(result.current.sampleCount).toBe(0);
+    expect(result.current.signals.insufficientData).toBe(true);
     expect(result.current.ref).toBeInstanceOf(Function);
     expect(result.current.reset).toBeInstanceOf(Function);
   });

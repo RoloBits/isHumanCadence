@@ -1,4 +1,4 @@
-import type { CadenceResult, MetricWeights } from './types';
+import type { MetricScores, MetricWeights } from './types';
 import type { RingBuffer } from './buffer';
 import { stddev, shannonEntropy, sigmoid, clamp, mean } from './utils';
 import { detectSpoof } from './anti-spoof';
@@ -11,6 +11,13 @@ export const DEFAULT_WEIGHTS: MetricWeights = {
   burstRegularity: 0.20,
 };
 
+export interface AnalyzerResult {
+  score: number;
+  metrics: MetricScores;
+  sampleCount: number;
+  confident: boolean;
+}
+
 export interface AnalyzerConfig {
   minSamples: number;
   weights: MetricWeights;
@@ -22,7 +29,7 @@ export interface Analyzer {
     flights: RingBuffer,
     corrections: number,
     total: number,
-  ): CadenceResult;
+  ): AnalyzerResult;
 }
 
 /**
@@ -120,7 +127,7 @@ export function createAnalyzer(config: AnalyzerConfig): Analyzer {
       flightBuf: RingBuffer,
       corrections: number,
       total: number,
-    ): CadenceResult {
+    ): AnalyzerResult {
       const dwells = dwellBuf.toArray();
       const flights = flightBuf.toArray();
       const sampleCount = dwells.length;

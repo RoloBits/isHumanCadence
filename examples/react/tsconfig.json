@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@rolobits/is-human-cadence/react": ["../../src/react/index.ts"],
+      "@rolobits/is-human-cadence": ["../../src/index.ts"]
+    }
+  },
+  "include": ["*.tsx", "*.ts", "components/**/*.tsx"]
+}

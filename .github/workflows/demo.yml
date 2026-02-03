@@ -24,14 +24,14 @@ jobs:
         with:
           node-version: "lts/*"
           cache: npm
-          cache-dependency-path: examples/package-lock.json
+          cache-dependency-path: examples/react/package-lock.json
       - run: npm ci
-        working-directory: examples
+        working-directory: examples/react
       - run: npm run build
-        working-directory: examples
+        working-directory: examples/react
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: examples/dist
+          path: examples/react/dist
 
   deploy:
     name: Deploy to Pages

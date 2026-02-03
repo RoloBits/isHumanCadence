@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { createCadence } from '../index';
-import type { CadenceConfig, CadenceResult, MetricScores } from '../types';
+import type { CadenceConfig, CadenceResult, CadenceSignals, MetricScores } from '../types';
 
 export interface UseHumanCadenceOptions {
   /** Sliding window size. Default: 50 */
@@ -20,6 +20,10 @@ export interface UseHumanCadenceReturn {
   confident: boolean;
   /** Individual metric scores. */
   metrics: MetricScores;
+  /** Contextual signals (paste, synthetic events, etc.). */
+  signals: CadenceSignals;
+  /** Number of samples in current window. */
+  sampleCount: number;
   /** Reset all collected data. */
   reset: () => void;
 }
@@ -45,6 +49,12 @@ export function useHumanCadence(
     },
     sampleCount: 0,
     confident: false,
+    signals: {
+      pasteDetected: false,
+      syntheticEvents: 0,
+      insufficientData: true,
+      inputWithoutKeystrokes: false,
+    },
   });
 
   // Stable config ref to avoid re-creating cadence on every render
@@ -96,6 +106,12 @@ export function useHumanCadence(
       },
       sampleCount: 0,
       confident: false,
+      signals: {
+        pasteDetected: false,
+        syntheticEvents: 0,
+        insufficientData: true,
+        inputWithoutKeystrokes: false,
+      },
     });
   }, []);
 
@@ -104,6 +120,8 @@ export function useHumanCadence(
     score: result.score,
     confident: result.confident,
     metrics: result.metrics,
+    signals: result.signals,
+    sampleCount: result.sampleCount,
     reset,
   };
 }

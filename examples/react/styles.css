@@ -40,7 +40,7 @@ body {
 }
 
 main {
-  max-width: 720px;
+  max-width: 800px;
   margin: 0 auto;
   padding: 2rem 1.5rem;
 }
@@ -67,59 +67,88 @@ h1 {
 .demo-grid {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.75rem;
 }
 
-/* Input section */
-.input-section label {
-  display: block;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  margin-bottom: 0.5rem;
-  color: var(--text-muted);
+.data-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.75rem;
 }
 
-textarea {
-  display: block;
-  width: 100%;
-  padding: 0.75rem;
-  font-family: var(--font);
-  font-size: 1rem;
-  color: var(--text);
+@media (min-width: 640px) {
+  .data-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Form section */
+.form-section {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  resize: vertical;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.field-group label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.signup-form input,
+.signup-form textarea {
+  display: block;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  font-family: var(--font);
+  font-size: 0.9375rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   outline: none;
   transition: border-color 0.15s;
 }
 
-textarea:focus {
+.signup-form input:focus,
+.signup-form textarea:focus {
   border-color: var(--accent);
 }
 
-.input-footer {
+.signup-form textarea {
+  resize: vertical;
+}
+
+.form-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 0.375rem;
+  margin-top: 0.25rem;
+}
+
+.sample-count {
   font-size: 0.75rem;
   color: var(--text-muted);
+  font-family: var(--mono);
 }
 
-#paste-indicator {
-  color: var(--yellow);
-  font-weight: 500;
-}
-
-.hidden {
-  display: none !important;
-}
-
-.button-row {
+.form-actions {
   display: flex;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
+  gap: 0.5rem;
 }
 
 button {
@@ -132,7 +161,7 @@ button {
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 button:hover {
@@ -148,6 +177,17 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.btn-reset {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.btn-reset:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
 /* Score gauge */
 .score-section {
   background: var(--surface);
@@ -155,6 +195,7 @@ button:disabled {
   border-radius: var(--radius);
   padding: 1.25rem;
   text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .gauge-label {
@@ -226,12 +267,66 @@ button:disabled {
   color: var(--green);
 }
 
+/* Signals */
+.signals-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.signals-section h2 {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.signal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.signal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.signal-name {
+  font-size: 0.8125rem;
+  color: var(--text);
+}
+
+.signal-badge {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 100px;
+  transition: background 0.3s, color 0.3s;
+}
+
+.signal-badge.inactive {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+}
+
+.signal-badge.active {
+  background: color-mix(in srgb, var(--yellow) 15%, transparent);
+  color: var(--yellow);
+}
+
 /* Metrics */
 .metrics-section {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .metrics-section h2 {
@@ -336,6 +431,69 @@ footer a:hover {
 
 .sep {
   margin: 0 0.375rem;
+}
+
+/* Mode toggle */
+.mode-toggle {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+
+.mode-toggle button {
+  flex: 1 1 0;
+  max-width: 140px;
+  padding: 0.375rem 0;
+  font-size: 0.8125rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.mode-toggle button:hover {
+  color: var(--text);
+}
+
+.mode-toggle button.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Mic / dictation button */
+.btn-mic {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.btn-mic:hover {
+  border-color: var(--accent);
+}
+
+.btn-mic.listening {
+  border-color: var(--red);
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 8%, transparent);
+  animation: mic-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 30%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--red) 0%, transparent);
+  }
+}
+
+/* Single-input textarea */
+.single-input {
+  min-height: 140px;
 }
 
 @media (max-width: 480px) {

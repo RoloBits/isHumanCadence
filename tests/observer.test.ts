@@ -25,6 +25,10 @@ function firePaste(target: EventTarget) {
   target.dispatchEvent(new Event('paste'));
 }
 
+function fireInput(target: EventTarget) {
+  target.dispatchEvent(new Event('input'));
+}
+
 describe('createObserver', () => {
   let target: MockTarget;
   let now: number;
@@ -195,13 +199,66 @@ describe('createObserver', () => {
     expect(state.pasteDetected).toBe(false);
   });
 
+  it('clear() clears state without removing listeners', () => {
+    const obs = createObserver(target, { windowSize: 50 });
+    obs.start();
+
+    now = 1000;
+    fireKey(target, 'keydown');
+    now = 1050;
+    fireKey(target, 'keyup');
+
+    obs.clear();
+
+    const state = obs.getState();
+    expect(state.dwells.length).toBe(0);
+    expect(state.flights.length).toBe(0);
+    expect(state.corrections).toBe(0);
+    expect(state.total).toBe(0);
+    expect(state.pasteDetected).toBe(false);
+    expect(state.syntheticEvents).toBe(0);
+
+    // Still listening — new events should be captured
+    now = 1200;
+    fireKey(target, 'keydown');
+    now = 1250;
+    fireKey(target, 'keyup');
+
+    const stateAfter = obs.getState();
+    expect(stateAfter.dwells.toArray()).toEqual([50]);
+    expect(stateAfter.total).toBe(1);
+  });
+
+  it('clear() while stopped preserves stopped state', () => {
+    const obs = createObserver(target, { windowSize: 50 });
+    obs.start();
+
+    now = 1000;
+    fireKey(target, 'keydown');
+    now = 1050;
+    fireKey(target, 'keyup');
+
+    obs.stop();
+    obs.clear();
+
+    // Should still be stopped — events not captured
+    now = 1200;
+    fireKey(target, 'keydown');
+    now = 1250;
+    fireKey(target, 'keyup');
+
+    const state = obs.getState();
+    expect(state.dwells.length).toBe(0);
+    expect(state.total).toBe(0);
+  });
+
   it('start() is idempotent', () => {
     const obs = createObserver(target, { windowSize: 50 });
     obs.start();
     obs.start(); // should not double-attach
 
-    // Only 3 listeners (keydown, keyup, paste), not 6
-    expect(target.addedListeners.length).toBe(3);
+    // Only 4 listeners (keydown, keyup, paste, input), not 8
+    expect(target.addedListeners.length).toBe(4);
   });
 
   it('multiple keystroke sequence builds correct buffers', () => {
@@ -226,6 +283,42 @@ describe('createObserver', () => {
     expect(state.flights.toArray()).toEqual([60, 65]);
     expect(state.total).toBe(3);
     expect(state.corrections).toBe(0);
+  });
+
+  describe('syntheticEvents tracking', () => {
+    it('counts events where isTrusted is false', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // dispatchEvent always produces isTrusted: false
+      now = 1000;
+      fireKey(target, 'keydown');
+      now = 1050;
+      fireKey(target, 'keyup');
+
+      now = 1150;
+      fireKey(target, 'keydown');
+      now = 1200;
+      fireKey(target, 'keyup');
+
+      // Each keydown dispatched via dispatchEvent has isTrusted: false
+      expect(obs.getState().syntheticEvents).toBe(2);
+    });
+
+    it('resets syntheticEvents on destroy()', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      now = 1000;
+      fireKey(target, 'keydown');
+      now = 1050;
+      fireKey(target, 'keyup');
+
+      expect(obs.getState().syntheticEvents).toBe(1);
+
+      obs.destroy();
+      expect(obs.getState().syntheticEvents).toBe(0);
+    });
   });
 
   describe('modifier-key filtering', () => {
@@ -406,6 +499,45 @@ describe('createObserver', () => {
       const state = obs.getState();
       expect(state.dwells.toArray()).toEqual([50]);
       expect(state.total).toBe(1);
+    });
+  });
+
+  describe('inputWithoutKeystrokes detection', () => {
+    it('sets inputWithoutKeystrokes when input fires without preceding keydown', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Simulate dictation/autofill: input event with no keydown
+      now = 1000;
+      fireInput(target);
+
+      expect(obs.getState().inputWithoutKeystrokes).toBe(true);
+    });
+
+    it('does not set inputWithoutKeystrokes when input fires after keydown (normal typing)', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Normal typing: keydown then input within 50ms
+      now = 1000;
+      fireKey(target, 'keydown');
+      now = 1003; // 3ms later — well within the 50ms window
+      fireInput(target);
+
+      expect(obs.getState().inputWithoutKeystrokes).toBe(false);
+    });
+
+    it('clear() resets inputWithoutKeystrokes to false', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Trigger the signal
+      now = 1000;
+      fireInput(target);
+      expect(obs.getState().inputWithoutKeystrokes).toBe(true);
+
+      obs.clear();
+      expect(obs.getState().inputWithoutKeystrokes).toBe(false);
     });
   });
 });

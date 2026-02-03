@@ -14,6 +14,17 @@ export interface MetricScores {
   burstRegularity: number;
 }
 
+export interface CadenceSignals {
+  /** True when a paste event was detected */
+  pasteDetected: boolean;
+  /** Number of programmatic (non-user-initiated) events seen */
+  syntheticEvents: number;
+  /** True when sampleCount < minSamples — not enough data to judge */
+  insufficientData: boolean;
+  /** True when text entered the field via a non-keyboard method (dictation, autofill, etc.) */
+  inputWithoutKeystrokes: boolean;
+}
+
 export interface CadenceResult {
   /** Overall humanity score, 0.0 (bot) to 1.0 (human) */
   score: number;
@@ -23,6 +34,8 @@ export interface CadenceResult {
   sampleCount: number;
   /** True when sampleCount >= minSamples */
   confident: boolean;
+  /** Contextual signals to help distinguish bots from assistive tech */
+  signals: CadenceSignals;
 }
 
 export interface CadenceConfig {
@@ -45,7 +58,7 @@ export interface Cadence {
   stop(): void;
   /** Force immediate score computation */
   analyze(): CadenceResult;
-  /** Reset buffer and all state */
+  /** Clear all data and reset score (does not stop listening) */
   reset(): void;
   /** Stop listening and release all resources */
   destroy(): void;
