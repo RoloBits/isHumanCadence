@@ -46,6 +46,7 @@ export function createCadence(
       syntheticEvents: 0,
       insufficientData: true,
       inputWithoutKeystrokes: false,
+      inputWithoutKeystrokeCount: 0,
     },
   };
 
@@ -64,6 +65,7 @@ export function createCadence(
         syntheticEvents: state.syntheticEvents,
         insufficientData: base.sampleCount < minSamples,
         inputWithoutKeystrokes: state.inputWithoutKeystrokes,
+        inputWithoutKeystrokeCount: state.inputWithoutKeystrokeCount,
       },
     };
     dirty = false;
@@ -141,6 +143,7 @@ export function createCadence(
         syntheticEvents: 0,
         insufficientData: true,
         inputWithoutKeystrokes: false,
+        inputWithoutKeystrokeCount: 0,
       },
     };
   }

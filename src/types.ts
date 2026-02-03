@@ -23,6 +23,8 @@ export interface CadenceSignals {
   insufficientData: boolean;
   /** True when text entered the field via a non-keyboard method (dictation, autofill, etc.) */
   inputWithoutKeystrokes: boolean;
+  /** Number of input events that occurred without a preceding keystroke (autocomplete, dictation, etc.) */
+  inputWithoutKeystrokeCount: number;
 }
 
 export interface CadenceResult {

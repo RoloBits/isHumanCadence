@@ -13,6 +13,7 @@ export interface ObserverState {
   pasteDetected: boolean;
   syntheticEvents: number;
   inputWithoutKeystrokes: boolean;
+  inputWithoutKeystrokeCount: number;
 }
 
 export interface Observer {
@@ -39,6 +40,7 @@ export function createObserver(
   let pasteDetected = false;
   let syntheticEvents = 0;
   let inputWithoutKeystrokes = false;
+  let inputWithoutKeystrokeCount = 0;
   let lastKeydownTime = 0;
 
   // Track press timestamps by key code-agnostic slot.
@@ -106,6 +108,8 @@ export function createObserver(
   const onInput = () => {
     if (performance.now() - lastKeydownTime > 50) {
       inputWithoutKeystrokes = true;
+      inputWithoutKeystrokeCount++;
+      lastReleaseTime = 0;
     }
   };
 
@@ -138,6 +142,7 @@ export function createObserver(
     pasteDetected = false;
     syntheticEvents = 0;
     inputWithoutKeystrokes = false;
+    inputWithoutKeystrokeCount = 0;
     lastKeydownTime = 0;
     lastPressTime = 0;
     lastReleaseTime = 0;
@@ -151,7 +156,7 @@ export function createObserver(
   }
 
   function getState(): ObserverState {
-    return { dwells, flights, corrections, total, pasteDetected, syntheticEvents, inputWithoutKeystrokes };
+    return { dwells, flights, corrections, total, pasteDetected, syntheticEvents, inputWithoutKeystrokes, inputWithoutKeystrokeCount };
   }
 
   return { start, stop, clear, destroy, getState };

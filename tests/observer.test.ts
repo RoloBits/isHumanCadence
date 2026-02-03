@@ -527,6 +527,60 @@ describe('createObserver', () => {
       expect(obs.getState().inputWithoutKeystrokes).toBe(false);
     });
 
+    it('resets lastReleaseTime on autocomplete (no spurious flight)', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      // Type 'a': press at 1000, release at 1050
+      now = 1000;
+      fireKey(target, 'keydown');
+      now = 1050;
+      fireKey(target, 'keyup');
+
+      // Autocomplete fires input 3 seconds later (no keydown)
+      now = 4050;
+      fireInput(target);
+
+      // User resumes typing — flight should NOT be 4050 - 1050 = 3000ms
+      // Since lastReleaseTime was reset to 0, this first keystroke after
+      // autocomplete should produce no flight time (same as session start)
+      now = 5000;
+      fireKey(target, 'keydown');
+      now = 5050;
+      fireKey(target, 'keyup');
+
+      const state = obs.getState();
+      // Only the flight from the first two keystrokes (before autocomplete)
+      // should be absent since there was only one keystroke before autocomplete
+      expect(state.flights.toArray()).toEqual([]);
+    });
+
+    it('increments inputWithoutKeystrokeCount on each autocomplete input', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      now = 1000;
+      fireInput(target);
+      expect(obs.getState().inputWithoutKeystrokeCount).toBe(1);
+
+      now = 2000;
+      fireInput(target);
+      expect(obs.getState().inputWithoutKeystrokeCount).toBe(2);
+    });
+
+    it('clear() resets inputWithoutKeystrokeCount to 0', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      now = 1000;
+      fireInput(target);
+      fireInput(target);
+      expect(obs.getState().inputWithoutKeystrokeCount).toBe(2);
+
+      obs.clear();
+      expect(obs.getState().inputWithoutKeystrokeCount).toBe(0);
+    });
+
     it('clear() resets inputWithoutKeystrokes to false', () => {
       const obs = createObserver(target, { windowSize: 50 });
       obs.start();

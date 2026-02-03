@@ -262,6 +262,7 @@ describe('createCadence integration', () => {
       syntheticEvents: expect.any(Number),
       insufficientData: true,
       inputWithoutKeystrokes: false,
+      inputWithoutKeystrokeCount: 0,
     });
 
     cadence.destroy();
@@ -319,6 +320,7 @@ describe('createCadence integration', () => {
       syntheticEvents: 0,
       insufficientData: true,
       inputWithoutKeystrokes: false,
+      inputWithoutKeystrokeCount: 0,
     });
 
     // Listeners survived reset — new keystrokes are captured

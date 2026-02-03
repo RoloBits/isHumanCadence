@@ -54,6 +54,7 @@ export function useHumanCadence(
       syntheticEvents: 0,
       insufficientData: true,
       inputWithoutKeystrokes: false,
+      inputWithoutKeystrokeCount: 0,
     },
   });
 
@@ -111,6 +112,7 @@ export function useHumanCadence(
         syntheticEvents: 0,
         insufficientData: true,
         inputWithoutKeystrokes: false,
+        inputWithoutKeystrokeCount: 0,
       },
     });
   }, []);
