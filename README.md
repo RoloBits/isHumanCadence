@@ -13,6 +13,12 @@
   <a href="./LICENSE"><img src="https://img.shields.io/npm/l/@rolobits/is-human-cadence?style=flat-square" alt="license"></a>
 </p>
 
+<p align="center">
+  <a href="https://rolobits.github.io/isHumanCadence/">
+    <img src="https://img.shields.io/badge/%E2%96%B6%20Live%20Demo-Try%20it%20out-blueviolet?style=for-the-badge" alt="Live Demo">
+  </a>
+</p>
+
 <br>
 
 Analyzes **how** users type, not **what** they type. The library monitors keystroke timing to produce a humanity score from `0.0` (bot) to `1.0` (human) — without ever knowing which keys were pressed.
