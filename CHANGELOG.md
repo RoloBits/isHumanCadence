@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/RoloBits/isHumanCadence/compare/v1.0.1...v1.0.2) (2026-02-03)
+
+
+### Bug Fixes
+
+* fix docs ([63b17c1](https://github.com/RoloBits/isHumanCadence/commit/63b17c106a07cde7a12292461a6df81a63851bbf))
+
 ## [1.0.1](https://github.com/RoloBits/isHumanCadence/compare/v1.0.0...v1.0.1) (2026-02-03)
 
 
