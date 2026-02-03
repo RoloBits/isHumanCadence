@@ -21,8 +21,7 @@
 
 <br>
 
-Analyzes **how** users type, not **what** they type. The library monitors keystroke timing to produce a humanity score from `0.0` (bot) to `1.0` (human) — without ever knowing which keys were pressed.
-
+Looks at **when** you press keys, not **which** keys you press. Gives you a `0.0` (bot) to `1.0` (human) score based on typing rhythm alone.
 ```
   Keystrokes        Timing Deltas         Statistical Analysis        Score
  ┌──────────┐      ┌─────────────┐       ┌────────────────────┐    ┌───────┐
@@ -33,19 +32,9 @@ Analyzes **how** users type, not **what** they type. The library monitors keystr
     passive           zero GC              requestIdleCallback       human
    listeners          circular buf         async analysis            score
 ```
+## Why
 
----
-
-## Features
-
-- **Silent** — runs in the background, no user interaction needed
-- **Privacy-first** — key-agnostic, never records what you type, only when
-- **Tiny** — under 3KB gzipped, zero dependencies
-- **Framework ready** — vanilla JS, React hook, Vue directive + composable
-- **Anti-spoof** — detects `Math.random()` jitter, replays, and paste attacks via KS test
-- **Zero input lag** — passive listeners + async analysis via `requestIdleCallback`
-
----
+Bots type like machines constant intervals, zero variance, no typos. Humans are messy we pause to think, we hit backspace, we speed up on familiar words. This library picks up on that.
 
 ## Install
 
@@ -53,18 +42,12 @@ Analyzes **how** users type, not **what** they type. The library monitors keystr
 npm install @rolobits/is-human-cadence
 ```
 
----
-
-## Quick Start
-
-### Vanilla JS / TypeScript
+## Usage
 
 ```ts
 import { createCadence } from '@rolobits/is-human-cadence';
 
-const input = document.querySelector('#email');
-const cadence = createCadence(input, {
-  minSamples: 20,
+const cadence = createCadence(document.querySelector('#email'), {
   onScore(result) {
     if (result.confident && result.score < 0.3) {
       showCaptchaFallback();
@@ -73,14 +56,6 @@ const cadence = createCadence(input, {
 });
 
 cadence.start();
-
-// Get score on demand
-const result = cadence.analyze();
-console.log(result.score);     // 0.0–1.0
-console.log(result.confident); // true when enough data collected
-
-// Cleanup
-cadence.destroy();
 ```
 
 ### React
@@ -102,7 +77,7 @@ function LoginForm() {
 
 ### Vue
 
-```vue
+```html
 <script setup>
 import { useHumanCadence } from '@rolobits/is-human-cadence/vue';
 
@@ -115,135 +90,106 @@ const { target, score, confident } = useHumanCadence({ minSamples: 20 });
 </template>
 ```
 
-**Directive:**
+Or as a directive:
 
-```vue
+```html
 <script setup>
 import { vHumanCadence } from '@rolobits/is-human-cadence/vue';
-
-function onScore(result) {
-  if (result.confident && result.score < 0.3) {
-    showCaptcha();
-  }
-}
 </script>
 
 <template>
-  <input v-human-cadence="onScore" type="email" />
+  <input v-human-cadence="(result) => console.log(result.score)" type="email" />
 </template>
 ```
 
----
+## What it measures
+
+Five signals, combined into one score:
+
+| Signal | What it checks | Human | Bot |
+|---|---|---|---|
+| **Dwell variance** | How much key-hold durations vary | Varies naturally | Nearly identical |
+| **Flight fit** | Whether inter-key timing follows a natural curve | Yes | Flat/constant |
+| **Timing entropy** | Randomness in rhythm | Moderate | Too uniform or too constant |
+| **Correction ratio** | Backspace/Delete usage | 2–15% | 0% or suspiciously exact |
+| **Burst regularity** | Pauses between typing bursts | Irregular | Metronomic |
+
+Each gets normalized to 0–1 and combined with configurable weights.
+
+## What it catches
+
+| Attack | Why it fails |
+|---|---|
+| Clipboard paste | No keystrokes at all |
+| `setInterval` + `dispatchEvent` | Constant timing, zero entropy |
+| `Math.random()` jitter | Uniform distribution, no autocorrelation |
+| Recorded keystroke replay | No corrections, no natural pauses |
 
 ## API
 
 ### `createCadence(target, config?)`
 
-Creates a cadence analyzer attached to a DOM element.
-
-**Config:**
-
-| Option | Type | Default | Description |
+| Option | Type | Default | |
 |---|---|---|---|
-| `windowSize` | `number` | `50` | Keystrokes in the sliding window |
-| `minSamples` | `number` | `20` | Minimum samples before `confident` is `true` |
-| `weights` | `Partial<MetricWeights>` | see below | Custom weights per metric |
-| `onScore` | `(result) => void` | — | Callback on new score |
-| `scheduling` | `'idle' \| 'manual'` | `'idle'` | `'idle'` = requestIdleCallback, `'manual'` = explicit `analyze()` |
+| `windowSize` | `number` | `50` | Keystrokes in sliding window |
+| `minSamples` | `number` | `20` | Samples before `confident: true` |
+| `weights` | `Partial<MetricWeights>` | — | Override metric weights |
+| `onScore` | `(result) => void` | — | Called on new score |
+| `scheduling` | `'idle' \| 'manual'` | `'idle'` | `'idle'` = requestIdleCallback |
 
-**Methods:**
+Returns:
 
-| Method | Description |
+| Method | |
 |---|---|
-| `start()` | Begin listening for keyboard events |
-| `stop()` | Pause listening (preserves collected data) |
-| `analyze()` | Compute and return a `CadenceResult` synchronously |
-| `reset()` | Clear all collected data |
-| `destroy()` | Stop + release all resources |
+| `start()` | Begin listening |
+| `stop()` | Pause (keeps data) |
+| `analyze()` | Get score now |
+| `reset()` | Clear everything |
+| `destroy()` | Stop + cleanup |
 
 ### `CadenceResult`
 
 ```ts
 {
-  score: number;       // 0.0 (bot) to 1.0 (human)
-  confident: boolean;  // true when sampleCount >= minSamples
-  sampleCount: number; // keystrokes in current window
+  score: number;       // 0.0 (bot) → 1.0 (human)
+  confident: boolean;  // true when enough data
+  sampleCount: number;
   metrics: {
-    dwellVariance: number;    // key-hold time variability
-    flightFit: number;        // timing distribution fit (KS test)
-    timingEntropy: number;    // randomness of timing patterns
-    correctionRatio: number;  // backspace/delete usage
-    burstRegularity: number;  // irregularity of typing bursts
+    dwellVariance: number;
+    flightFit: number;
+    timingEntropy: number;
+    correctionRatio: number;
+    burstRegularity: number;
   }
 }
 ```
 
-### Default Weights
+### Default weights
 
 ```ts
 {
   dwellVariance:   0.15,
-  flightFit:       0.30,  // strongest discriminator
+  flightFit:       0.30,  // strongest signal
   timingEntropy:   0.20,
   correctionRatio: 0.15,
   burstRegularity: 0.20,
 }
 ```
 
----
-
-## How It Works
-
-Every keystroke produces two timing measurements:
-
-- **Dwell time** — how long a key is held down (`release − press`)
-- **Flight time** — the gap between releasing one key and pressing the next
-
-Human typing creates patterns that are hard to fake:
-
-| Signal | Human | Bot |
-|---|---|---|
-| Flight time distribution | [Log-normal](https://en.wikipedia.org/wiki/Log-normal_distribution) (right-skewed) | Uniform or constant |
-| Dwell time variance | 15–60ms σ | Near-zero or perfectly constant |
-| Corrections (Backspace) | 2–15% of keystrokes | 0% |
-| Burst gaps | Irregular pauses | Evenly spaced |
-| Serial correlation | Positive (digraph effects: "th" is fast, "qz" is slow) | ~0 (random jitter has no memory) |
-
-The library runs a **Kolmogorov-Smirnov test** to compare timing distributions against known human/bot profiles, then combines all five signals through **sigmoid normalization** into a weighted score.
-
-### Detection Coverage
-
-| Attack | How it's caught |
-|---|---|
-| Clipboard paste | Zero dwell/flight times |
-| `setInterval` + `dispatchEvent` | Constant timing, zero entropy |
-| `Math.random()` jitter | Uniform distribution, zero autocorrelation |
-| Recorded keystroke replay | No corrections, no natural pauses |
-
----
-
 ## Privacy
 
-This library is **key-agnostic** by design. It cannot function as a keylogger.
+Can't be used as a keylogger — it doesn't know which keys you press.
 
-| | What |
-|---|---|
-| **Captured** | Timestamps (`performance.now()`), timing deltas, correction count, aggregate stats |
-| **Never captured** | Key identity, input content, key sequences, user/device info |
-| **Network** | Zero requests |
-| **Storage** | Nothing persisted (no cookies, localStorage, IndexedDB) |
+- **Captures**: timestamps, timing deltas, correction count, aggregate stats
+- **Never captures**: key identity, text content, key sequences
+- **No network requests**. No cookies, localStorage, or IndexedDB.
 
-The only place `event.key` is read is a boolean check for `Backspace`/`Delete` — the key value is never stored.
+The only place `event.key` is read is a boolean check for Backspace/Delete — the value is never stored.
 
----
-
-## Browser Support
-
-ES2020+ environments. All modern browsers. Uses `requestIdleCallback` with `setTimeout` fallback for Safari.
 
 ## Contributing
 
-Contributions are welcome. Please open an issue first to discuss what you'd like to change.
+PRs welcome. Open an issue first to discuss.
 
 ```bash
 git clone https://github.com/RoloBits/isHumanCadence.git
