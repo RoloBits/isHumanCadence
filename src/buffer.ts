@@ -35,7 +35,7 @@ export function createBuffer(capacity: number): RingBuffer {
     },
 
     toArray(): number[] {
-      const result: number[] = new Array(count);
+      const result: number[] = new Array<number>(count);
       const start = count < capacity ? 0 : head;
       for (let i = 0; i < count; i++) {
         result[i] = data[(start + i) % capacity];

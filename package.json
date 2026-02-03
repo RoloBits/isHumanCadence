@@ -38,9 +38,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "tsc --noEmit",
+    "lint": "eslint src/ tests/",
+    "lint:fix": "eslint src/ tests/ --fix",
+    "typecheck": "tsc --noEmit",
     "size": "tsup && npx bundlephobia dist/index.js",
-    "prepublishOnly": "npm run lint && npm run test && npm run build"
+    "check": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "prepublishOnly": "npm run check",
+    "prepare": "lefthook install"
   },
   "peerDependencies": {
     "react": ">=17.0.0",
@@ -55,6 +59,7 @@
     }
   },
   "devDependencies": {
+    "@evilmartians/lefthook": "2.0.16",
     "@semantic-release/changelog": "6.0.3",
     "@semantic-release/git": "10.0.1",
     "@testing-library/jest-dom": "6.9.1",
@@ -62,12 +67,15 @@
     "@types/react": "19.2.10",
     "@types/react-dom": "19.2.3",
     "@vue/test-utils": "2.4.6",
+    "eslint": "9.39.2",
     "jsdom": "^25.0.0",
+    "lint-staged": "16.2.7",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "semantic-release": "25.0.3",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
+    "typescript-eslint": "8.54.0",
     "vitest": "^2.0.0",
     "vue": "3.5.27"
   },
