@@ -1,6 +1,30 @@
-import type { Cadence, CadenceConfig, CadenceResult, KeystrokeEvent, TimingData } from './types';
+import type { Cadence, CadenceConfig, CadenceResult, Classification, ClassificationThresholds, KeystrokeEvent, TimingData } from './types';
 import { createObserver } from './observer';
 import { createAnalyzer, DEFAULT_WEIGHTS } from './analyzer';
+
+export const DEFAULT_CLASSIFICATION_THRESHOLDS: ClassificationThresholds = {
+  botToUnknown: 0.45,
+  unknownToBot: 0.35,
+  unknownToHuman: 0.70,
+  humanToUnknown: 0.60,
+};
+
+function classify(
+  score: number,
+  current: Classification,
+  thresholds: ClassificationThresholds,
+): Classification {
+  switch (current) {
+    case 'bot':
+      return score >= thresholds.botToUnknown ? 'unknown' : 'bot';
+    case 'unknown':
+      if (score >= thresholds.unknownToHuman) return 'human';
+      if (score < thresholds.unknownToBot) return 'bot';
+      return 'unknown';
+    case 'human':
+      return score < thresholds.humanToUnknown ? 'unknown' : 'human';
+  }
+}
 
 function deriveTimingFromEvents(events: KeystrokeEvent[]) {
   const dwells: number[] = [];
@@ -22,7 +46,7 @@ function deriveTimingFromEvents(events: KeystrokeEvent[]) {
   return { dwells, flights, corrections, rollovers, total: events.length };
 }
 
-export type { Cadence, CadenceConfig, CadenceResult, CadenceSignals, KeystrokeEvent, MetricWeights, MetricScores, TimingData } from './types';
+export type { Cadence, CadenceConfig, CadenceResult, CadenceSignals, Classification, ClassificationThresholds, KeystrokeEvent, MetricWeights, MetricScores, TimingData } from './types';
 export { DEFAULT_WEIGHTS } from './analyzer';
 
 const DEFAULT_WINDOW_SIZE = 50;
@@ -45,12 +69,14 @@ export function createCadence(
 
   const weights = { ...DEFAULT_WEIGHTS, ...config?.weights };
   const recordEvents = config?.recordEvents === true;
+  const classificationThresholds = { ...DEFAULT_CLASSIFICATION_THRESHOLDS, ...config?.classificationThresholds };
   const observer = createObserver(target, { windowSize, recordEvents });
   const analyzer = createAnalyzer({ minSamples, weights });
 
   let dirty = false;
   let idleHandle: number | undefined;
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  let currentClassification: Classification = 'unknown';
   let lastResult: CadenceResult = {
     score: 0.5,
     metrics: {
@@ -70,6 +96,7 @@ export function createCadence(
       inputWithoutKeystrokes: false,
       inputWithoutKeystrokeCount: 0,
     },
+    classification: 'unknown',
   };
 
   function computeScore() {
@@ -94,6 +121,7 @@ export function createCadence(
         state.total,
       );
     }
+    currentClassification = classify(base.score, currentClassification, classificationThresholds);
     lastResult = {
       ...base,
       signals: {
@@ -103,6 +131,7 @@ export function createCadence(
         inputWithoutKeystrokes: state.inputWithoutKeystrokes,
         inputWithoutKeystrokeCount: state.inputWithoutKeystrokeCount,
       },
+      classification: currentClassification,
     };
     dirty = false;
     onScore?.(lastResult);
@@ -163,6 +192,7 @@ export function createCadence(
     dirty = false;
     if (idleHandle !== undefined) { cancelIdleCallback(idleHandle); idleHandle = undefined; }
     if (timeoutHandle !== undefined) { clearTimeout(timeoutHandle); timeoutHandle = undefined; }
+    currentClassification = 'unknown';
     lastResult = {
       score: 0.5,
       metrics: {
@@ -182,6 +212,7 @@ export function createCadence(
         inputWithoutKeystrokes: false,
         inputWithoutKeystrokeCount: 0,
       },
+      classification: 'unknown',
     };
   }
 

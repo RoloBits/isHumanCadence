@@ -1,6 +1,6 @@
 import { ref, onMounted, onUnmounted, type Ref, type ObjectDirective } from 'vue';
 import { createCadence } from '../index';
-import type { CadenceConfig, CadenceResult, MetricScores, Cadence } from '../types';
+import type { CadenceConfig, CadenceResult, Classification, MetricScores, Cadence } from '../types';
 
 export interface UseHumanCadenceOptions {
   /** Sliding window size. Default: 50 */
@@ -9,6 +9,8 @@ export interface UseHumanCadenceOptions {
   minSamples?: number;
   /** Custom metric weights. */
   weights?: CadenceConfig['weights'];
+  /** Custom thresholds for hysteresis classification. */
+  classificationThresholds?: CadenceConfig['classificationThresholds'];
 }
 
 export interface UseHumanCadenceReturn {
@@ -20,6 +22,8 @@ export interface UseHumanCadenceReturn {
   confident: Ref<boolean>;
   /** Individual metric scores. */
   metrics: Ref<MetricScores>;
+  /** Classification with hysteresis: 'bot', 'unknown', or 'human'. */
+  classification: Ref<Classification>;
   /** Reset all collected data. */
   reset: () => void;
 }
@@ -44,6 +48,7 @@ export function useHumanCadence(
   const score = ref(0.5);
   const confident = ref(false);
   const metrics = ref<MetricScores>({ ...NEUTRAL_METRICS });
+  const classification = ref<Classification>('unknown');
 
   let cadence: Cadence | null = null;
 
@@ -51,6 +56,7 @@ export function useHumanCadence(
     score.value = result.score;
     confident.value = result.confident;
     metrics.value = result.metrics;
+    classification.value = result.classification;
   }
 
   onMounted(() => {
@@ -59,6 +65,7 @@ export function useHumanCadence(
       windowSize: options?.windowSize,
       minSamples: options?.minSamples,
       weights: options?.weights,
+      classificationThresholds: options?.classificationThresholds,
       scheduling: 'idle',
       onScore,
     });
@@ -77,9 +84,10 @@ export function useHumanCadence(
     score.value = 0.5;
     confident.value = false;
     metrics.value = { ...NEUTRAL_METRICS };
+    classification.value = 'unknown';
   }
 
-  return { target, score, confident, metrics, reset };
+  return { target, score, confident, metrics, classification, reset };
 }
 
 /** Directive binding value: callback or config with callback. */
@@ -88,6 +96,7 @@ type DirectiveBinding = ((result: CadenceResult) => void) | {
   windowSize?: number;
   minSamples?: number;
   weights?: CadenceConfig['weights'];
+  classificationThresholds?: CadenceConfig['classificationThresholds'];
 };
 
 const instanceMap = new WeakMap<HTMLElement, Cadence>();
@@ -112,6 +121,7 @@ export const vHumanCadence: ObjectDirective<HTMLElement, DirectiveBinding> = {
       config.windowSize = value.windowSize;
       config.minSamples = value.minSamples;
       config.weights = value.weights;
+      config.classificationThresholds = value.classificationThresholds;
     }
 
     const cadence = createCadence(el, config);

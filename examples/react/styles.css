@@ -258,9 +258,42 @@ button:disabled {
   color: var(--text-muted);
 }
 
+.gauge-badges {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.classification-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 100px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: background 0.3s, color 0.3s;
+}
+
+.classification-badge.classification-bot {
+  background: color-mix(in srgb, var(--red) 15%, transparent);
+  color: var(--red);
+}
+
+.classification-badge.classification-unknown {
+  background: color-mix(in srgb, var(--yellow) 15%, transparent);
+  color: var(--yellow);
+}
+
+.classification-badge.classification-human {
+  background: color-mix(in srgb, var(--green) 15%, transparent);
+  color: var(--green);
+}
+
 .confidence-badge {
   display: inline-block;
-  margin-top: 0.75rem;
   padding: 0.25rem 0.75rem;
   font-size: 0.75rem;
   font-weight: 500;

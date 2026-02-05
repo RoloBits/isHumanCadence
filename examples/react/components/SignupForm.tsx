@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { MetricScores, CadenceSignals, TimingData } from '@rolobits/is-human-cadence';
+import type { MetricScores, CadenceSignals, Classification, TimingData } from '@rolobits/is-human-cadence';
 
 /* ------------------------------------------------------------------ */
 /*  Web Speech API type declarations (not in all TS lib configs)      */
@@ -183,6 +183,7 @@ interface SignupFormProps {
   sampleCount: number;
   score: number;
   confident: boolean;
+  classification: Classification;
   metrics: MetricScores;
   signals: CadenceSignals;
   onSnapshot: () => TimingData | null;
@@ -194,6 +195,7 @@ export function SignupForm({
   sampleCount,
   score,
   confident,
+  classification,
   metrics,
   signals,
   onSnapshot,
@@ -273,13 +275,13 @@ export function SignupForm({
     if (!raw) return;
 
     const payload = {
-      version: 2,
+      version: 3,
       timestamp: new Date().toISOString(),
       mode,
       windowSize: 50,
       text: mode === 'single' ? freetext : form,
       raw,
-      result: { score, confident, sampleCount, metrics, signals },
+      result: { score, confident, classification, sampleCount, metrics, signals },
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], {

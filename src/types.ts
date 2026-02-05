@@ -1,3 +1,16 @@
+export type Classification = 'bot' | 'unknown' | 'human';
+
+export interface ClassificationThresholds {
+  /** Score threshold to transition from bot → unknown (default: 0.45) */
+  botToUnknown: number;
+  /** Score threshold to transition from unknown → bot (default: 0.35) */
+  unknownToBot: number;
+  /** Score threshold to transition from unknown → human (default: 0.70) */
+  unknownToHuman: number;
+  /** Score threshold to transition from human → unknown (default: 0.60) */
+  humanToUnknown: number;
+}
+
 export interface MetricWeights {
   dwellVariance: number;
   flightFit: number;
@@ -40,6 +53,8 @@ export interface CadenceResult {
   confident: boolean;
   /** Contextual signals to help distinguish bots from assistive tech */
   signals: CadenceSignals;
+  /** Classification with hysteresis: 'bot', 'unknown', or 'human' */
+  classification: Classification;
 }
 
 export interface CadenceConfig {
@@ -55,6 +70,8 @@ export interface CadenceConfig {
   scheduling?: 'idle' | 'manual';
   /** Record per-keystroke event log for offline analysis. Default: false */
   recordEvents?: boolean;
+  /** Custom thresholds for hysteresis classification. Default: see DEFAULT_CLASSIFICATION_THRESHOLDS */
+  classificationThresholds?: Partial<ClassificationThresholds>;
 }
 
 export interface Cadence {

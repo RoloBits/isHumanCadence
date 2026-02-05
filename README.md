@@ -49,7 +49,7 @@ import { createCadence } from '@rolobits/is-human-cadence';
 
 const cadence = createCadence(document.querySelector('#email'), {
   onScore(result) {
-    if (result.confident && result.score < 0.3) {
+    if (result.confident && result.classification === 'bot') {
       showCaptchaFallback();
     }
   },
@@ -64,12 +64,12 @@ cadence.start();
 import { useHumanCadence } from '@rolobits/is-human-cadence/react';
 
 function LoginForm() {
-  const { ref, score, confident } = useHumanCadence({ minSamples: 20 });
+  const { ref, confident, classification } = useHumanCadence({ minSamples: 20 });
 
   return (
     <form>
       <input ref={ref} type="email" />
-      {confident && score < 0.3 && <CaptchaChallenge />}
+      {confident && classification === 'bot' && <CaptchaChallenge />}
     </form>
   );
 }
@@ -81,7 +81,7 @@ function LoginForm() {
 import { useHumanCadence } from '@rolobits/is-human-cadence/react';
 
 function SignupForm() {
-  const { ref, score, confident } = useHumanCadence({ minSamples: 20 });
+  const { ref, confident, classification } = useHumanCadence({ minSamples: 20 });
 
   return (
     <form onSubmit={handleSubmit}>
@@ -90,7 +90,7 @@ function SignupForm() {
         <input type="email" name="email" placeholder="Email" />
         <input type="password" name="password" placeholder="Password" />
       </div>
-      <button type="submit" disabled={!confident || score < 0.5}>
+      <button type="submit" disabled={!confident || classification === 'bot'}>
         Sign Up
       </button>
     </form>
@@ -104,12 +104,12 @@ function SignupForm() {
 <script setup>
 import { useHumanCadence } from '@rolobits/is-human-cadence/vue';
 
-const { target, score, confident } = useHumanCadence({ minSamples: 20 });
+const { target, confident, classification } = useHumanCadence({ minSamples: 20 });
 </script>
 
 <template>
   <input ref="target" type="email" />
-  <CaptchaChallenge v-if="confident && score < 0.3" />
+  <CaptchaChallenge v-if="confident && classification === 'bot'" />
 </template>
 ```
 
@@ -173,6 +173,7 @@ The other five metrics (dwell variance, flight fit, timing entropy, burst regula
 | `windowSize` | `number` | `50` | Keystrokes in sliding window |
 | `minSamples` | `number` | `20` | Samples before `confident: true` |
 | `weights` | `Partial<MetricWeights>` | — | Override metric weights |
+| `classificationThresholds` | `Partial<ClassificationThresholds>` | — | Override hysteresis thresholds |
 | `onScore` | `(result) => void` | — | Called on new score |
 | `scheduling` | `'idle' \| 'manual'` | `'idle'` | `'idle'` = requestIdleCallback |
 
@@ -190,8 +191,9 @@ Returns:
 
 ```ts
 {
-  score: number;       // 0.0 (bot) → 1.0 (human)
-  confident: boolean;  // true when enough data
+  score: number;              // 0.0 (bot) → 1.0 (human)
+  classification: Classification; // 'bot' | 'unknown' | 'human' (with hysteresis)
+  confident: boolean;         // true when enough data
   sampleCount: number;
   metrics: {
     dwellVariance: number;
@@ -224,6 +226,41 @@ Returns:
 }
 ```
 
+### Classification with hysteresis
+
+The `classification` field provides a stable `'bot' | 'unknown' | 'human'` label that won't flicker when the score hovers near a threshold. It uses [Schmitt trigger](https://en.wikipedia.org/wiki/Schmitt_trigger) hysteresis — different thresholds for entering vs. leaving a state:
+
+```
+            BOT              UNKNOWN              HUMAN
+Score:  [0.0 -------- 0.35/0.45 ------- 0.60/0.70 -------- 1.0]
+                         ↑                  ↑
+                    dead zone          dead zone
+```
+
+| Transition | Threshold | |
+|---|---|---|
+| unknown → bot | `< 0.35` | Score must fall below 0.35 to become "bot" |
+| bot → unknown | `≥ 0.45` | Score must rise to 0.45 to escape "bot" |
+| unknown → human | `≥ 0.70` | Score must reach 0.70 to become "human" |
+| human → unknown | `< 0.60` | Score must fall below 0.60 to leave "human" |
+
+The 0.10-wide dead zones prevent rapid flickering when scores hover near boundaries.
+
+**Custom thresholds:**
+
+```ts
+const cadence = createCadence(target, {
+  classificationThresholds: {
+    unknownToBot: 0.30,   // more lenient
+    botToUnknown: 0.40,
+    unknownToHuman: 0.75, // stricter
+    humanToUnknown: 0.65,
+  },
+});
+```
+
+**Default thresholds** are exported as `DEFAULT_CLASSIFICATION_THRESHOLDS`.
+
 ## Privacy
 
 Can't be used as a keylogger — it doesn't know which keys you press.
@@ -248,11 +285,13 @@ Recommended pattern:
 onScore(result) {
   if (!result.confident) return;             // not enough data yet
   if (result.signals.syntheticEvents > 0) return; // programmatic input, skip
-  if (result.score < 0.3) {
+  if (result.classification === 'bot') {
     showFallbackChallenge();                 // email verify, simple question, etc.
   }
 }
 ```
+
+Using `classification` instead of raw `score` comparisons prevents flickering when the score hovers near a threshold.
 
 What works well:
 - **Screen readers + physical keyboard** — scores normally (modifier keys are filtered)

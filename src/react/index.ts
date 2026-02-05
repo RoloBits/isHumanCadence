@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { createCadence } from '../index';
-import type { CadenceConfig, CadenceResult, CadenceSignals, MetricScores, TimingData } from '../types';
+import type { CadenceConfig, CadenceResult, CadenceSignals, Classification, MetricScores, TimingData } from '../types';
 
 export interface UseHumanCadenceOptions {
   /** Sliding window size. Default: 50 */
@@ -11,6 +11,8 @@ export interface UseHumanCadenceOptions {
   weights?: CadenceConfig['weights'];
   /** Record per-keystroke event log for offline analysis. Default: false */
   recordEvents?: boolean;
+  /** Custom thresholds for hysteresis classification. */
+  classificationThresholds?: CadenceConfig['classificationThresholds'];
 }
 
 export interface UseHumanCadenceReturn {
@@ -26,6 +28,8 @@ export interface UseHumanCadenceReturn {
   signals: CadenceSignals;
   /** Number of samples in current window. */
   sampleCount: number;
+  /** Classification with hysteresis: 'bot', 'unknown', or 'human'. */
+  classification: Classification;
   /** Reset all collected data. */
   reset: () => void;
   /** Return a plain-object snapshot of raw timing buffers, or null if not attached. */
@@ -61,6 +65,7 @@ export function useHumanCadence(
       inputWithoutKeystrokes: false,
       inputWithoutKeystrokeCount: 0,
     },
+    classification: 'unknown',
   });
 
   // Stable config ref to avoid re-creating cadence on every render
@@ -83,6 +88,7 @@ export function useHumanCadence(
         minSamples: opts?.minSamples,
         weights: opts?.weights,
         recordEvents: opts?.recordEvents,
+        classificationThresholds: opts?.classificationThresholds,
         scheduling: 'idle',
         onScore: setResult,
       });
@@ -125,6 +131,7 @@ export function useHumanCadence(
         inputWithoutKeystrokes: false,
         inputWithoutKeystrokeCount: 0,
       },
+      classification: 'unknown',
     });
   }, []);
 
@@ -135,6 +142,7 @@ export function useHumanCadence(
     metrics: result.metrics,
     signals: result.signals,
     sampleCount: result.sampleCount,
+    classification: result.classification,
     reset,
     snapshot,
   };
