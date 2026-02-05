@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/RoloBits/isHumanCadence/compare/v1.4.0...v1.4.1) (2026-02-05)
+
+
+### Bug Fixes
+
+* **demo:** add metric sparkline cards with full history ([f9fab4b](https://github.com/RoloBits/isHumanCadence/commit/f9fab4bd1df283dcfb2ff546ddc4ecc782036600))
+
 # [1.4.0](https://github.com/RoloBits/isHumanCadence/compare/v1.3.0...v1.4.0) (2026-02-05)
 
 
