@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/RoloBits/isHumanCadence/compare/v1.4.1...v1.5.0) (2026-02-05)
+
+
+### Features
+
+* add classification with Schmitt trigger hysteresis ([e4da12e](https://github.com/RoloBits/isHumanCadence/commit/e4da12e98e065968c588f7569681600627ddb281))
+
 ## [1.4.1](https://github.com/RoloBits/isHumanCadence/compare/v1.4.0...v1.4.1) (2026-02-05)
 
 
