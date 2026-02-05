@@ -1,5 +1,19 @@
 import { normalCDF, autocorrelation, mean, stddev } from './utils';
 
+// ── KS test parameters ──
+const MIN_KS_SAMPLES = 5;
+const KS_CRITICAL_COEFF = 1.22;       // α=0.10 (see computeLogNormalityScore comment)
+const KS_PASS_BASELINE = 0.7;         // score when D ≤ critical
+const KS_PASS_BONUS = 0.3;            // additional range [0.7, 1.0]
+const KS_FAIL_BASELINE = 0.7;         // numerator when D > critical
+
+// ── detectSpoof weights ──
+const AUTOCORR_NOISE_FLOOR = 0.05;    // below this, treat as zero
+const AUTOCORR_HUMAN_MAX = 0.3;       // normalization cap
+const SPOOF_WEIGHT_LOGNORMALITY = 0.45;
+const SPOOF_WEIGHT_UNIFORMITY = 0.30;
+const SPOOF_WEIGHT_AUTOCORR = 0.25;
+
 /**
  * One-sample Kolmogorov-Smirnov test statistic.
  * Returns the max absolute deviation between the empirical CDF
@@ -31,14 +45,14 @@ function ksStatistic(samples: number[], cdf: (x: number) => number): number {
  * with estimated mean and stddev from the transformed data.
  */
 export function computeLogNormalityScore(flights: number[]): number {
-  if (flights.length < 5) return 0.5; // insufficient data, neutral
+  if (flights.length < MIN_KS_SAMPLES) return 0.5; // insufficient data, neutral
 
   // Log-transform, filtering out non-positive values
   const logged: number[] = [];
   for (let i = 0; i < flights.length; i++) {
     if (flights[i] > 0) logged.push(Math.log(flights[i]));
   }
-  if (logged.length < 5) return 0.5;
+  if (logged.length < MIN_KS_SAMPLES) return 0.5;
 
   const mu = mean(logged);
   const sigma = stddev(logged);
@@ -47,16 +61,21 @@ export function computeLogNormalityScore(flights: number[]): number {
   // KS test against normal(mu, sigma)
   const D = ksStatistic([...logged], (x) => normalCDF((x - mu) / sigma));
 
-  // Critical value at alpha=0.05: 1.36 / sqrt(n)
-  const critical = 1.36 / Math.sqrt(logged.length);
+  // KS critical value: 1.22 / √n corresponds to α=0.10.
+  // Relaxed from α=0.05 (1.36) because human flight times are a mixture of
+  // digraph-specific distributions that fail a strict single-distribution KS
+  // test even for genuine data. α=0.10 lets more real humans pass (score ≥ 0.7)
+  // without affecting bot detection (constant bots hit σ=0 early-return;
+  // uniform bots are penalized harder via the 1−uniformity term).
+  const critical = KS_CRITICAL_COEFF / Math.sqrt(logged.length);
 
   // Convert D to a score: D < critical → good fit → high score
   // Use ratio: score approaches 1 as D approaches 0
   if (D <= critical) {
-    return 0.7 + 0.3 * (1 - D / critical);
+    return KS_PASS_BASELINE + KS_PASS_BONUS * (1 - D / critical);
   }
-  // D > critical: score drops below 0.7
-  return Math.max(0, 0.7 * (critical / D));
+  // D > critical: score drops below baseline
+  return Math.max(0, KS_FAIL_BASELINE * (critical / D));
 }
 
 /**
@@ -64,7 +83,7 @@ export function computeLogNormalityScore(flights: number[]): number {
  * Returns a score 0–1 where higher = better fit to uniform = more bot-like.
  */
 export function computeUniformityScore(flights: number[]): number {
-  if (flights.length < 5) return 0.5;
+  if (flights.length < MIN_KS_SAMPLES) return 0.5;
 
   const sorted = [...flights].sort((a, b) => a - b);
   const min = sorted[0];
@@ -75,12 +94,13 @@ export function computeUniformityScore(flights: number[]): number {
 
   // KS test against uniform(min, max)
   const D = ksStatistic([...sorted], (x) => (x - min) / range);
-  const critical = 1.36 / Math.sqrt(flights.length);
+  // KS critical value at α=0.10 — see computeLogNormalityScore for rationale.
+  const critical = KS_CRITICAL_COEFF / Math.sqrt(flights.length);
 
   if (D <= critical) {
-    return 0.7 + 0.3 * (1 - D / critical);
+    return KS_PASS_BASELINE + KS_PASS_BONUS * (1 - D / critical);
   }
-  return Math.max(0, 0.7 * (critical / D));
+  return Math.max(0, KS_FAIL_BASELINE * (critical / D));
 }
 
 export interface SpoofResult {
@@ -112,13 +132,13 @@ export function detectSpoof(flights: number[]): SpoofResult {
   // Autocorrelation score: humans have moderate positive correlation
   // Map abs(correlation) through a soft threshold
   const absCorr = Math.abs(serialCorrelation);
-  const corrScore = absCorr > 0.05 ? Math.min(1, absCorr / 0.3) : 0;
+  const corrScore = absCorr > AUTOCORR_NOISE_FLOOR ? Math.min(1, absCorr / AUTOCORR_HUMAN_MAX) : 0;
 
   // Weighted combination
   const genuineScore = Math.max(0, Math.min(1,
-    0.45 * logNormality +
-    0.30 * (1 - uniformity) +
-    0.25 * corrScore,
+    SPOOF_WEIGHT_LOGNORMALITY * logNormality +
+    SPOOF_WEIGHT_UNIFORMITY * (1 - uniformity) +
+    SPOOF_WEIGHT_AUTOCORR * corrScore,
   ));
 
   return { genuineScore, logNormality, uniformity, serialCorrelation };

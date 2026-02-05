@@ -3,13 +3,28 @@ import type { RingBuffer } from './buffer';
 import { stddev, shannonEntropy, sigmoid, clamp, mean } from './utils';
 import { detectSpoof } from './anti-spoof';
 
+/**
+ * Default metric weights, calibrated against the Aalto 168K keystroke benchmark.
+ *
+ * Aalto per-metric averages (168,593 subjects, 2.38M windows):
+ *   rolloverRate  0.9167  — strongest human signal, highest weight
+ *   dwellVariance 0.7343  — second most reliable
+ *   timingEntropy 0.7284  — stable mid-range signal
+ *   burstRegularity 0.6866 — useful but gated (77.5% signal rate)
+ *   correctionRatio 0.5613 — rarely present in short input (0.14% signal rate)
+ *   flightFit     0.5689  — weakest metric (digraph mixture vs single log-normal)
+ *
+ * Weights track reliability: stronger metrics get more weight so a single
+ * weak metric can't drag the composite score below the human threshold.
+ * See validation/AALTO-ANALYSIS.md §8 for the before/after benchmark data.
+ */
 export const DEFAULT_WEIGHTS: MetricWeights = {
-  dwellVariance: 0.10,
-  flightFit: 0.25,
+  dwellVariance: 0.15,
+  flightFit: 0.15,
   timingEntropy: 0.20,
   correctionRatio: 0.10,
   burstRegularity: 0.15,
-  rolloverRate: 0.20,
+  rolloverRate: 0.25,
 };
 
 /** Minimum dwell samples for variance scoring.
@@ -45,6 +60,42 @@ const MIN_ROLLOVER_SAMPLES = 10;
 /** Sentinel: metric has no behavioral data to score (e.g. 0 corrections). */
 const NO_DATA = -1;
 
+// ── Dwell variance sigmoid parameters ──
+const DWELL_UP_SLOPE = 0.3;
+const DWELL_UP_MIDPOINT_MS = 8;       // ramps up around 8 ms
+const DWELL_DOWN_SLOPE = -0.05;
+const DWELL_DOWN_MIDPOINT_MS = 80;    // ramps down around 80 ms
+
+// ── Flight fit (IKI floor) ──
+const IKI_FLOOR_MS = 60;              // physical minimum human inter-key interval
+const SUB_FLOOR_RATIO_THRESHOLD = 0.5;
+const IKI_FLOOR_PENALTY = 0.15;       // score multiplier when majority sub-floor
+
+// ── Timing entropy ──
+const FLUCTUATION_SIGMOID_SLOPE = 1.0;
+const FLUCTUATION_SIGMOID_MIDPOINT = 4; // target max/min IKI ratio
+const ENTROPY_UP_SLOPE = 3;
+const ENTROPY_UP_MIDPOINT_BITS = 1.5;
+const ENTROPY_DOWN_SLOPE = -3;
+const ENTROPY_DOWN_MIDPOINT_BITS = 3.5;
+const ENTROPY_WEIGHT = 0.7;
+const FLUCTUATION_WEIGHT = 0.3;
+
+// ── Correction ratio ──
+const CORRECTION_SIGMOID_SLOPE = 80;
+const CORRECTION_SIGMOID_MIDPOINT = 0.015;
+const EXCESSIVE_CORRECTION_THRESHOLD = 0.3;
+const EXCESSIVE_CORRECTION_PENALTY = 0.8;
+
+// ── Burst regularity ──
+const BURST_GAP_MS = 300;             // gap > 300 ms separates bursts
+const BURST_CV_SLOPE = 8;
+const BURST_CV_MIDPOINT = 0.2;
+
+// ── Rollover rate ──
+const ROLLOVER_SIGMOID_SLOPE = 60;
+const ROLLOVER_SIGMOID_MIDPOINT = 0.03;
+
 export interface AnalyzerResult {
   score: number;
   metrics: MetricScores;
@@ -77,8 +128,8 @@ function scoreDwellVariance(dwells: number[]): number {
   const sd = stddev(dwells);
   // Too low (< 5ms) → bot, sweet spot ~15–60ms → human, too high → noise
   // Use a bell-like shape: sigmoid up then sigmoid down
-  const up = sigmoid(sd, 0.3, 8);    // ramps up around 8ms
-  const down = sigmoid(sd, -0.05, 80); // ramps down around 80ms
+  const up = sigmoid(sd, DWELL_UP_SLOPE, DWELL_UP_MIDPOINT_MS);
+  const down = sigmoid(sd, DWELL_DOWN_SLOPE, DWELL_DOWN_MIDPOINT_MS);
   return up * down;
 }
 
@@ -91,12 +142,12 @@ function scoreFlightFit(flights: number[]): number {
   if (flights.length < MIN_FLIGHT_SAMPLES) return 0.5;
   const result = detectSpoof(flights);
 
-  // Physical IKI floor: sustained median < 60ms is impossible for humans
+  // Physical IKI floor: sustained median < IKI_FLOOR_MS is impossible for humans
   let subFloor = 0;
   for (let i = 0; i < flights.length; i++) {
-    if (flights[i] < 60) subFloor++;
+    if (flights[i] < IKI_FLOOR_MS) subFloor++;
   }
-  const ikiPenalty = (subFloor / flights.length) > 0.5 ? 0.15 : 1.0;
+  const ikiPenalty = (subFloor / flights.length) > SUB_FLOOR_RATIO_THRESHOLD ? IKI_FLOOR_PENALTY : 1.0;
 
   return result.genuineScore * ikiPenalty;
 }
@@ -118,15 +169,15 @@ function scoreTimingEntropy(flights: number[]): number {
     if (flights[i] > max) max = flights[i];
   }
   const fluctuation = min > 0 ? max / min : 0;
-  const fluctScore = sigmoid(fluctuation, 1.0, 4);
+  const fluctScore = sigmoid(fluctuation, FLUCTUATION_SIGMOID_SLOPE, FLUCTUATION_SIGMOID_MIDPOINT);
 
   // Base entropy (unchanged bell shape)
-  const up = sigmoid(entropy, 3, 1.5);
-  const down = sigmoid(entropy, -3, 3.5);
+  const up = sigmoid(entropy, ENTROPY_UP_SLOPE, ENTROPY_UP_MIDPOINT_BITS);
+  const down = sigmoid(entropy, ENTROPY_DOWN_SLOPE, ENTROPY_DOWN_MIDPOINT_BITS);
   const entropyScore = up * down;
 
-  // Combine: 70% entropy + 30% fluctuation
-  return 0.7 * entropyScore + 0.3 * fluctScore;
+  // Combine: entropy + fluctuation
+  return ENTROPY_WEIGHT * entropyScore + FLUCTUATION_WEIGHT * fluctScore;
 }
 
 /**
@@ -142,11 +193,11 @@ function scoreCorrectionRatio(corrections: number, total: number): number {
   if (total < MIN_CORRECTION_SAMPLES) return 0.5;
   if (corrections === 0) return NO_DATA;
   const ratio = corrections / total;
-  const raw = sigmoid(ratio, 80, 0.015);
-  const floor = sigmoid(0, 80, 0.015);
+  const raw = sigmoid(ratio, CORRECTION_SIGMOID_SLOPE, CORRECTION_SIGMOID_MIDPOINT);
+  const floor = sigmoid(0, CORRECTION_SIGMOID_SLOPE, CORRECTION_SIGMOID_MIDPOINT);
   const score = (raw - floor) / (1 - floor);
-  // Excessive corrections (>30%) → slight penalty
-  return ratio > 0.3 ? score * 0.8 : score;
+  // Excessive corrections → slight penalty
+  return ratio > EXCESSIVE_CORRECTION_THRESHOLD ? score * EXCESSIVE_CORRECTION_PENALTY : score;
 }
 
 /**
@@ -160,11 +211,10 @@ function scoreCorrectionRatio(corrections: number, total: number): number {
 function scoreBurstRegularity(flights: number[]): number {
   if (flights.length < MIN_BURST_SAMPLES) return 0.5;
 
-  const BURST_THRESHOLD = 300;
   const burstGaps: number[] = [];
 
   for (let i = 0; i < flights.length; i++) {
-    if (flights[i] > BURST_THRESHOLD) {
+    if (flights[i] > BURST_GAP_MS) {
       burstGaps.push(flights[i]);
     }
   }
@@ -177,7 +227,7 @@ function scoreBurstRegularity(flights: number[]): number {
 
   // Coefficient of variation: high CV = irregular bursts = human
   const cv = gapMean > 0 ? gapStddev / gapMean : 0;
-  return sigmoid(cv, 8, 0.2);
+  return sigmoid(cv, BURST_CV_SLOPE, BURST_CV_MIDPOINT);
 }
 
 /**
@@ -191,8 +241,8 @@ function scoreRolloverRate(rollovers: number, total: number): number {
   if (total < MIN_ROLLOVER_SAMPLES) return 0.5;
   if (rollovers === 0) return NO_DATA;
   const ratio = rollovers / total;
-  const raw = sigmoid(ratio, 60, 0.03);
-  const floor = sigmoid(0, 60, 0.03);
+  const raw = sigmoid(ratio, ROLLOVER_SIGMOID_SLOPE, ROLLOVER_SIGMOID_MIDPOINT);
+  const floor = sigmoid(0, ROLLOVER_SIGMOID_SLOPE, ROLLOVER_SIGMOID_MIDPOINT);
   return (raw - floor) / (1 - floor);
 }
 

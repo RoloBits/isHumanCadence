@@ -1,3 +1,21 @@
+/**
+ * Abramowitz & Stegun rational approximation coefficients for the
+ * cumulative normal distribution (eq. 26.2.17, p. 932).
+ *
+ * Source: Abramowitz, M. & Stegun, I.A. (1964).
+ *   "Handbook of Mathematical Functions", National Bureau of Standards.
+ *   https://personal.math.ubc.ca/~cbm/aands/page_932.htm
+ *
+ * Accuracy: |ε(x)| < 7.5 × 10⁻⁸ for all x.
+ */
+const AS_SCALING = 0.2316419;          // p  — input scaling factor
+const INV_SQRT_2PI = 0.3989422804014327; // 1 / √(2π) — normal PDF prefactor
+const AS_A1 =  0.31938153;            // a₁
+const AS_A2 = -0.356563782;           // a₂
+const AS_A3 =  1.781477937;           // a₃
+const AS_A4 = -1.821255978;           // a₄
+const AS_A5 =  1.330274429;           // a₅
+
 /** Arithmetic mean of an array. Returns 0 for empty input. */
 export function mean(values: number[]): number {
   if (values.length === 0) return 0;
@@ -29,16 +47,15 @@ export function clamp(value: number, min: number, max: number): number {
  */
 export function normalCDF(x: number): number {
   const abs = Math.abs(x);
-  const t = 1 / (1 + 0.2316419 * abs);
-  const d = 0.3989422804014327; // 1 / sqrt(2 * PI)
+  const t = 1 / (1 + AS_SCALING * abs);
   const p =
-    d *
+    INV_SQRT_2PI *
     Math.exp((-x * x) / 2) *
     (t *
-      (0.31938153 +
+      (AS_A1 +
         t *
-          (-0.356563782 +
-            t * (1.781477937 + t * (-1.821255978 + t * 1.330274429)))));
+          (AS_A2 +
+            t * (AS_A3 + t * (AS_A4 + t * AS_A5)))));
   return x >= 0 ? 1 - p : p;
 }
 

@@ -1,5 +1,8 @@
 import { createBuffer, type RingBuffer } from './buffer';
 
+/** Max ms between last keydown and an input event to consider it keystroke-driven. */
+const INPUT_WITHOUT_KEYSTROKE_MS = 50;
+
 export interface ObserverConfig {
   /** Sliding window size. Default: 50 */
   windowSize: number;
@@ -111,7 +114,7 @@ export function createObserver(
   };
 
   const onInput = () => {
-    if (performance.now() - lastKeydownTime > 50) {
+    if (performance.now() - lastKeydownTime > INPUT_WITHOUT_KEYSTROKE_MS) {
       inputWithoutKeystrokes = true;
       inputWithoutKeystrokeCount++;
       lastReleaseTime = 0;

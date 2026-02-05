@@ -215,12 +215,12 @@ Returns:
 
 ```ts
 {
-  dwellVariance:   0.10,
-  flightFit:       0.25,
+  dwellVariance:   0.15,
+  flightFit:       0.15,
   timingEntropy:   0.20,
   correctionRatio: 0.10,
   burstRegularity: 0.15,
-  rolloverRate:    0.20,  // strongest human-only signal
+  rolloverRate:    0.25,  // strongest human-only signal
 }
 ```
 
