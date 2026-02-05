@@ -1,3 +1,15 @@
+# [1.4.0](https://github.com/RoloBits/isHumanCadence/compare/v1.3.0...v1.4.0) (2026-02-05)
+
+
+### Bug Fixes
+
+* **analyzer:** recalibrate metric weights from and extract scoring constants ([06206b3](https://github.com/RoloBits/isHumanCadence/commit/06206b39c4f39e0fa37a8c58f445351d4aa60ddf))
+
+
+### Features
+
+* **analyzer:** gate no-signal metrics out of weighted score ([d482f37](https://github.com/RoloBits/isHumanCadence/commit/d482f3735b6f7b9e2a47066f8a04d1cebb4a4dea))
+
 # [1.3.0](https://github.com/RoloBits/isHumanCadence/compare/v1.2.0...v1.3.0) (2026-02-03)
 
 
