@@ -188,6 +188,17 @@ button:disabled {
   color: var(--red);
 }
 
+.btn-download {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.btn-download:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Score gauge */
 .score-section {
   background: var(--surface);
@@ -412,6 +423,61 @@ button:disabled {
   color: var(--text-muted);
 }
 
+/* Metric sparkline cards */
+.metric-cards-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.metric-cards-section h2 {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.metric-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.metric-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  overflow: hidden;
+}
+
+.metric-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.metric-card-value {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.sparkline {
+  display: block;
+  width: 100%;
+  height: 48px;
+}
+
+@media (min-width: 640px) {
+  .metric-cards-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 /* Footer */
 footer {
   text-align: center;
@@ -494,6 +560,101 @@ footer a:hover {
 /* Single-input textarea */
 .single-input {
   min-height: 140px;
+}
+
+/* Desktop: two-column, viewport-height layout */
+@media (min-width: 1024px) {
+  body {
+    height: 100dvh;
+    overflow: auto;
+  }
+
+  main {
+    max-width: none;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 2.5rem;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    text-align: left;
+  }
+
+  header .subtitle {
+    margin-top: 0;
+  }
+
+  footer {
+    margin-top: auto;
+    padding-top: 0.75rem;
+  }
+
+  .demo-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr auto;
+    gap: 1.25rem;
+  }
+
+  .form-section {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .form-section .signup-form {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Make the cadence ref wrapper grow so textarea can fill */
+  .form-section .signup-form > div:nth-child(2) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* Free-text field group fills available space */
+  .form-section .field-group:has(.single-input) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .form-section .single-input {
+    flex: 1;
+    min-height: 80px;
+  }
+
+  .score-section {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .data-grid {
+    grid-column: 2;
+    grid-row: 2;
+    grid-template-columns: 1fr 1fr;
+    align-content: start;
+  }
+
+  .metric-cards-section {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .metric-cards-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
 }
 
 @media (max-width: 480px) {

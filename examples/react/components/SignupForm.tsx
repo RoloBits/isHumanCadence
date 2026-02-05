@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import type { MetricScores, CadenceSignals, TimingData } from '@rolobits/is-human-cadence';
 
 /* ------------------------------------------------------------------ */
 /*  Web Speech API type declarations (not in all TS lib configs)      */
@@ -180,12 +181,22 @@ interface SignupFormProps {
   cadenceRef: (node: HTMLElement | null) => void;
   onReset: () => void;
   sampleCount: number;
+  score: number;
+  confident: boolean;
+  metrics: MetricScores;
+  signals: CadenceSignals;
+  onSnapshot: () => TimingData | null;
 }
 
 export function SignupForm({
   cadenceRef,
   onReset,
   sampleCount,
+  score,
+  confident,
+  metrics,
+  signals,
+  onSnapshot,
 }: SignupFormProps) {
   const [mode, setMode] = useState<'single' | 'form'>('single');
   const [freetext, setFreetext] = useState('');
@@ -253,6 +264,33 @@ export function SignupForm({
     setForm({ name: '', email: '', password: '', bio: '' });
     interimLenRef.current = 0;
     onReset();
+  }
+
+  /* — download handler --------------------------------------------- */
+
+  function handleDownload() {
+    const raw = onSnapshot();
+    if (!raw) return;
+
+    const payload = {
+      version: 2,
+      timestamp: new Date().toISOString(),
+      mode,
+      windowSize: 50,
+      text: mode === 'single' ? freetext : form,
+      raw,
+      result: { score, confident, sampleCount, metrics, signals },
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cadence-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   /* — speech dictation --------------------------------------------- */
@@ -432,6 +470,14 @@ export function SignupForm({
             {sampleCount} sample{sampleCount !== 1 ? 's' : ''}
           </span>
           <div className="form-actions">
+            <button
+              type="button"
+              className="btn-download"
+              onClick={handleDownload}
+              disabled={sampleCount === 0}
+            >
+              Download
+            </button>
             <button
               type="button"
               className="btn-reset"

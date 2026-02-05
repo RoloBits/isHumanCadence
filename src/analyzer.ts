@@ -1,5 +1,4 @@
 import type { MetricScores, MetricWeights } from './types';
-import type { RingBuffer } from './buffer';
 import { stddev, shannonEntropy, sigmoid, clamp, mean } from './utils';
 import { detectSpoof } from './anti-spoof';
 
@@ -110,8 +109,8 @@ export interface AnalyzerConfig {
 
 export interface Analyzer {
   analyze(
-    dwells: RingBuffer,
-    flights: RingBuffer,
+    dwells: number[],
+    flights: number[],
     corrections: number,
     rollovers: number,
     total: number,
@@ -251,14 +250,12 @@ export function createAnalyzer(config: AnalyzerConfig): Analyzer {
 
   return {
     analyze(
-      dwellBuf: RingBuffer,
-      flightBuf: RingBuffer,
+      dwells: number[],
+      flights: number[],
       corrections: number,
       rollovers: number,
       total: number,
     ): AnalyzerResult {
-      const dwells = dwellBuf.toArray();
-      const flights = flightBuf.toArray();
       const sampleCount = dwells.length;
       const confident = sampleCount >= minSamples;
 

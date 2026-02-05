@@ -1,4 +1,5 @@
 import { createBuffer, type RingBuffer } from './buffer';
+import type { KeystrokeEvent } from './types';
 
 /** Max ms between last keydown and an input event to consider it keystroke-driven. */
 const INPUT_WITHOUT_KEYSTROKE_MS = 50;
@@ -6,6 +7,8 @@ const INPUT_WITHOUT_KEYSTROKE_MS = 50;
 export interface ObserverConfig {
   /** Sliding window size. Default: 50 */
   windowSize: number;
+  /** Record per-keystroke event log. Default: false */
+  recordEvents?: boolean;
 }
 
 export interface ObserverState {
@@ -18,6 +21,8 @@ export interface ObserverState {
   syntheticEvents: number;
   inputWithoutKeystrokes: boolean;
   inputWithoutKeystrokeCount: number;
+  /** Per-keystroke event log (undefined when recordEvents is false) */
+  events?: KeystrokeEvent[];
 }
 
 export interface Observer {
@@ -58,6 +63,13 @@ export function createObserver(
   let pendingFilteredUps = 0;
   let hadRepeat = false;
 
+  // Per-keystroke event recording (opt-in)
+  const recordEvents = config.recordEvents === true;
+  let events: KeystrokeEvent[] | undefined = recordEvents ? [] : undefined;
+  // Stack of pending presses to pair keydown→keyup for event recording.
+  // Needed because overlapping keys (rollovers) can have multiple pending presses.
+  let pendingPresses: { pressTime: number; isCorrection: boolean; isRollover: boolean }[] = [];
+
   const onKeyDown = (e: Event) => {
     const now = performance.now();
     lastKeydownTime = now;
@@ -81,12 +93,19 @@ export function createObserver(
     }
 
     activeKeys++;
-    if (activeKeys > 1) rollovers++;
+    const isRollover = activeKeys > 1;
+    if (isRollover) rollovers++;
     total++;
 
     // Flight time: gap between previous key release and this key press
     if (lastReleaseTime > 0 && activeKeys === 1) {
       flights.push(now - lastReleaseTime);
+    }
+
+    // Record pending press for event log
+    if (recordEvents) {
+      const isCorrection = ke.key === 'Backspace' || ke.key === 'Delete';
+      pendingPresses.push({ pressTime: now, isCorrection, isRollover });
     }
 
     lastPressTime = now;
@@ -103,6 +122,25 @@ export function createObserver(
     if (lastPressTime > 0 && !hadRepeat) {
       dwells.push(now - lastPressTime);
     }
+
+    // Complete the event record (pop oldest pending press — FIFO for correct pairing)
+    if (recordEvents && pendingPresses.length > 0) {
+      if (!hadRepeat) {
+        const pending = pendingPresses.shift();
+        if (pending && events) {
+          events.push({
+            pressTime: pending.pressTime,
+            releaseTime: now,
+            isCorrection: pending.isCorrection,
+            isRollover: pending.isRollover,
+          });
+        }
+      } else {
+        // Held key with repeat — discard the pending press without recording
+        pendingPresses.shift();
+      }
+    }
+
     hadRepeat = false;
 
     activeKeys = Math.max(0, activeKeys - 1);
@@ -158,6 +196,7 @@ export function createObserver(
     activeKeys = 0;
     pendingFilteredUps = 0;
     hadRepeat = false;
+    if (recordEvents) { events = []; pendingPresses = []; }
   }
 
   function destroy() {
@@ -166,7 +205,7 @@ export function createObserver(
   }
 
   function getState(): ObserverState {
-    return { dwells, flights, corrections, rollovers, total, pasteDetected, syntheticEvents, inputWithoutKeystrokes, inputWithoutKeystrokeCount };
+    return { dwells, flights, corrections, rollovers, total, pasteDetected, syntheticEvents, inputWithoutKeystrokes, inputWithoutKeystrokeCount, ...(events && { events }) };
   }
 
   return { start, stop, clear, destroy, getState };

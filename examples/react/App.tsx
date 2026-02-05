@@ -1,12 +1,27 @@
+import { useState, useEffect, useCallback } from 'react';
 import { useHumanCadence } from '@rolobits/is-human-cadence/react';
+import type { MetricScores } from '@rolobits/is-human-cadence';
 import { SignupForm } from './components/SignupForm';
 import { ScoreGauge } from './components/ScoreGauge';
 import { MetricBreakdown } from './components/MetricBreakdown';
+import { MetricCards } from './components/MetricCards';
 import { SignalPanel } from './components/SignalPanel';
 
 export function App() {
-  const { ref, score, confident, metrics, signals, sampleCount, reset } =
-    useHumanCadence({ windowSize: 50, minSamples: 20 });
+  const { ref, score, confident, metrics, signals, sampleCount, reset, snapshot } =
+    useHumanCadence({ windowSize: 50, minSamples: 20, recordEvents: true });
+
+  const [metricHistory, setMetricHistory] = useState<MetricScores[]>([]);
+
+  useEffect(() => {
+    if (sampleCount === 0) return;
+    setMetricHistory((prev) => [...prev, metrics]);
+  }, [metrics, sampleCount]);
+
+  const handleReset = useCallback(() => {
+    reset();
+    setMetricHistory([]);
+  }, [reset]);
 
   return (
     <main>
@@ -20,8 +35,13 @@ export function App() {
       <div className="demo-grid">
         <SignupForm
           cadenceRef={ref}
-          onReset={reset}
+          onReset={handleReset}
           sampleCount={sampleCount}
+          score={score}
+          confident={confident}
+          metrics={metrics}
+          signals={signals}
+          onSnapshot={snapshot}
         />
 
         <ScoreGauge score={score} confident={confident} />
@@ -30,6 +50,8 @@ export function App() {
           <SignalPanel signals={signals} />
           <MetricBreakdown metrics={metrics} />
         </div>
+
+        <MetricCards metrics={metrics} history={metricHistory} />
       </div>
 
       <footer>

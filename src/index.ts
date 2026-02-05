@@ -1,8 +1,28 @@
-import type { Cadence, CadenceConfig, CadenceResult } from './types';
+import type { Cadence, CadenceConfig, CadenceResult, KeystrokeEvent, TimingData } from './types';
 import { createObserver } from './observer';
 import { createAnalyzer, DEFAULT_WEIGHTS } from './analyzer';
 
-export type { Cadence, CadenceConfig, CadenceResult, CadenceSignals, MetricWeights, MetricScores, TimingData } from './types';
+function deriveTimingFromEvents(events: KeystrokeEvent[]) {
+  const dwells: number[] = [];
+  const flights: number[] = [];
+  let corrections = 0;
+  let rollovers = 0;
+
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
+    dwells.push(ev.releaseTime - ev.pressTime);
+    if (ev.isCorrection) corrections++;
+    if (ev.isRollover) rollovers++;
+
+    if (i > 0 && !ev.isRollover) {
+      const flight = ev.pressTime - events[i - 1].releaseTime;
+      if (flight > 0) flights.push(flight);
+    }
+  }
+  return { dwells, flights, corrections, rollovers, total: events.length };
+}
+
+export type { Cadence, CadenceConfig, CadenceResult, CadenceSignals, KeystrokeEvent, MetricWeights, MetricScores, TimingData } from './types';
 export { DEFAULT_WEIGHTS } from './analyzer';
 
 const DEFAULT_WINDOW_SIZE = 50;
@@ -24,7 +44,8 @@ export function createCadence(
   const onScore = config?.onScore;
 
   const weights = { ...DEFAULT_WEIGHTS, ...config?.weights };
-  const observer = createObserver(target, { windowSize });
+  const recordEvents = config?.recordEvents === true;
+  const observer = createObserver(target, { windowSize, recordEvents });
   const analyzer = createAnalyzer({ minSamples, weights });
 
   let dirty = false;
@@ -53,13 +74,26 @@ export function createCadence(
 
   function computeScore() {
     const state = observer.getState();
-    const base = analyzer.analyze(
-      state.dwells,
-      state.flights,
-      state.corrections,
-      state.rollovers,
-      state.total,
-    );
+
+    let base;
+    if (state.events && state.events.length > state.dwells.length) {
+      const derived = deriveTimingFromEvents(state.events);
+      base = analyzer.analyze(
+        derived.dwells,
+        derived.flights,
+        derived.corrections,
+        derived.rollovers,
+        derived.total,
+      );
+    } else {
+      base = analyzer.analyze(
+        state.dwells.toArray(),
+        state.flights.toArray(),
+        state.corrections,
+        state.rollovers,
+        state.total,
+      );
+    }
     lastResult = {
       ...base,
       signals: {
@@ -151,10 +185,22 @@ export function createCadence(
     };
   }
 
+  function snapshot(): TimingData {
+    const state = observer.getState();
+    return {
+      dwells: state.dwells.toArray(),
+      flights: state.flights.toArray(),
+      corrections: state.corrections,
+      rollovers: state.rollovers,
+      total: state.total,
+      ...(state.events && { events: [...state.events] }),
+    };
+  }
+
   function destroy() {
     stop();
     reset();
   }
 
-  return { start, stop, analyze, reset, destroy };
+  return { start, stop, analyze, reset, snapshot, destroy };
 }

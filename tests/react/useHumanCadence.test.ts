@@ -100,6 +100,13 @@ describe('useHumanCadence', () => {
     expect(result.current.confident).toBe(false);
   });
 
+  it('snapshot is a function and returns null before ref is attached', () => {
+    const { result } = renderHook(() => useHumanCadence());
+
+    expect(result.current.snapshot).toBeInstanceOf(Function);
+    expect(result.current.snapshot()).toBeNull();
+  });
+
   it('cleans up on unmount', () => {
     const { result, unmount } = renderHook(() => useHumanCadence());
 

@@ -736,4 +736,210 @@ describe('createObserver', () => {
       expect(obs.getState().inputWithoutKeystrokes).toBe(false);
     });
   });
+
+  describe('event recording (recordEvents)', () => {
+    it('state.events is undefined when recordEvents is not set', () => {
+      const obs = createObserver(target, { windowSize: 50 });
+      obs.start();
+
+      now = 1000;
+      fireKey(target, 'keydown');
+      now = 1050;
+      fireKey(target, 'keyup');
+
+      expect(obs.getState().events).toBeUndefined();
+    });
+
+    it('state.events is undefined when recordEvents is false', () => {
+      const obs = createObserver(target, { windowSize: 50, recordEvents: false });
+      obs.start();
+
+      now = 1000;
+      fireKey(target, 'keydown');
+      now = 1050;
+      fireKey(target, 'keyup');
+
+      expect(obs.getState().events).toBeUndefined();
+    });
+
+    it('events array grows with each keystroke when recordEvents is true', () => {
+      const obs = createObserver(target, { windowSize: 50, recordEvents: true });
+      obs.start();
+
+      // First keystroke
+      now = 1000;
+      fireKey(target, 'keydown');
+      now = 1050;
+      fireKey(target, 'keyup');
+
+      expect(obs.getState().events).toHaveLength(1);
+
+      // Second keystroke
+      now = 1120;
+      fireKey(target, 'keydown');
+      now = 1160;
+      fireKey(target, 'keyup');
+
+      expect(obs.getState().events).toHaveLength(2);
+
+      // Third keystroke
+      now = 1250;
+      fireKey(target, 'keydown');
+      now = 1300;
+      fireKey(target, 'keyup');
+
+      expect(obs.getState().events).toHaveLength(3);
+    });
+
+    it('events have correct pressTime and releaseTime', () => {
+      const obs = createObserver(target, { windowSize: 50, recordEvents: true });
+      obs.start();
+
+      now = 1000;
+      fireKey(target, 'keydown');
+      now = 1050;
+      fireKey(target, 'keyup');
+
+      now = 1120;
+      fireKey(target, 'keydown');
+      now = 1160;
+      fireKey(target, 'keyup');
+
+      const events = obs.getState().events ?? [];
+      expect(events[0].pressTime).toBe(1000);
+      expect(events[0].releaseTime).toBe(1050);
+      expect(events[1].pressTime).toBe(1120);
+      expect(events[1].releaseTime).toBe(1160);
+    });
+
+    it('events mark isCorrection for Backspace/Delete', () => {
+      const obs = createObserver(target, { windowSize: 50, recordEvents: true });
+      obs.start();
+
+      // Normal key
+      now = 1000;
+      fireKey(target, 'keydown', 'a');
+      now = 1050;
+      fireKey(target, 'keyup', 'a');
+
+      // Backspace
+      now = 1120;
+      fireKey(target, 'keydown', 'Backspace');
+      now = 1160;
+      fireKey(target, 'keyup', 'Backspace');
+
+      // Delete
+      now = 1230;
+      fireKey(target, 'keydown', 'Delete');
+      now = 1270;
+      fireKey(target, 'keyup', 'Delete');
+
+      const events = obs.getState().events ?? [];
+      expect(events[0].isCorrection).toBe(false);
+      expect(events[1].isCorrection).toBe(true);
+      expect(events[2].isCorrection).toBe(true);
+    });
+
+    it('events mark isRollover when keys overlap', () => {
+      const obs = createObserver(target, { windowSize: 50, recordEvents: true });
+      obs.start();
+
+      // Sequential keystroke (no rollover)
+      now = 1000;
+      fireKey(target, 'keydown', 'a');
+      now = 1050;
+      fireKey(target, 'keyup', 'a');
+
+      // Press 'b' alone (activeKeys 0→1), then press 'c' while 'b' held (activeKeys 1→2)
+      now = 1120;
+      fireKey(target, 'keydown', 'b');
+      now = 1140;
+      fireKey(target, 'keydown', 'c'); // rollover
+      now = 1160;
+      fireKey(target, 'keyup', 'b');
+      now = 1180;
+      fireKey(target, 'keyup', 'c');
+
+      const events = obs.getState().events ?? [];
+      expect(events).toHaveLength(3);
+      expect(events[0].isRollover).toBe(false); // 'a' pressed alone
+      expect(events[1].isRollover).toBe(false); // 'b' pressed alone (activeKeys was 0→1)
+      expect(events[2].isRollover).toBe(true);  // 'c' pressed while 'b' held (activeKeys 1→2)
+    });
+
+    it('clear() empties the events array', () => {
+      const obs = createObserver(target, { windowSize: 50, recordEvents: true });
+      obs.start();
+
+      now = 1000;
+      fireKey(target, 'keydown');
+      now = 1050;
+      fireKey(target, 'keyup');
+
+      expect(obs.getState().events).toHaveLength(1);
+
+      obs.clear();
+      expect(obs.getState().events).toEqual([]);
+
+      // New events after clear work correctly
+      now = 1200;
+      fireKey(target, 'keydown');
+      now = 1250;
+      fireKey(target, 'keyup');
+
+      expect(obs.getState().events).toHaveLength(1);
+    });
+
+    it('filtered keystrokes (modifiers) are excluded from events', () => {
+      const obs = createObserver(target, { windowSize: 50, recordEvents: true });
+      obs.start();
+
+      // Cmd+C (filtered)
+      now = 1000;
+      fireKey(target, 'keydown', 'Meta', { metaKey: true });
+      now = 1020;
+      fireKey(target, 'keydown', 'c', { metaKey: true });
+      now = 1050;
+      fireKey(target, 'keyup', 'c', { metaKey: true });
+      now = 1070;
+      fireKey(target, 'keyup', 'Meta');
+
+      expect(obs.getState().events).toEqual([]);
+    });
+
+    it('held key repeats are excluded from events', () => {
+      const obs = createObserver(target, { windowSize: 50, recordEvents: true });
+      obs.start();
+
+      // Hold 'a' with repeat
+      now = 1000;
+      fireKey(target, 'keydown', 'a');
+      now = 1050;
+      fireKey(target, 'keydown', 'a', { repeat: true });
+      now = 1100;
+      fireKey(target, 'keydown', 'a', { repeat: true });
+      now = 1120;
+      fireKey(target, 'keyup', 'a');
+
+      // Held keys with repeat should not produce events (dwell is also skipped)
+      expect(obs.getState().events).toEqual([]);
+    });
+
+    it('events are unbounded (not capped at windowSize)', () => {
+      const obs = createObserver(target, { windowSize: 5, recordEvents: true });
+      obs.start();
+
+      // Type 10 keystrokes with windowSize 5
+      for (let i = 0; i < 10; i++) {
+        now = 1000 + i * 100;
+        fireKey(target, 'keydown');
+        now += 40;
+        fireKey(target, 'keyup');
+      }
+
+      // RingBuffer only keeps last 5, but events keeps all 10
+      expect(obs.getState().dwells.toArray()).toHaveLength(5);
+      expect(obs.getState().events).toHaveLength(10);
+    });
+  });
 });

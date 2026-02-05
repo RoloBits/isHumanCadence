@@ -44,7 +44,9 @@
     "size": "tsup && npx bundlephobia dist/index.js",
     "check": "npm run typecheck && npm run lint && npm run test && npm run build",
     "prepublishOnly": "npm run check",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install",
+    "extract:aalto": "tsx validation/aalto-extract.ts",
+    "validate:aalto": "tsx validation/aalto-benchmark.ts"
   },
   "peerDependencies": {
     "react": ">=17.0.0",

@@ -330,6 +330,58 @@ describe('createCadence integration', () => {
     cadence.destroy();
   });
 
+  it('snapshot() returns arrays with correct length after typing', () => {
+    const cadence = createCadence(target, { scheduling: 'manual' });
+    cadence.start();
+
+    typeSequence(target, humanTimings(25), 1000, mockNow);
+    const snap = cadence.snapshot();
+
+    expect(Array.isArray(snap.dwells)).toBe(true);
+    expect(Array.isArray(snap.flights)).toBe(true);
+    expect(snap.dwells.length).toBe(25);
+    // flights = dwells - 1 (gap between consecutive keystrokes)
+    expect(snap.flights.length).toBe(24);
+    expect(snap.total).toBe(25);
+    expect(typeof snap.corrections).toBe('number');
+    expect(typeof snap.rollovers).toBe('number');
+
+    cadence.destroy();
+  });
+
+  it('snapshot() is JSON-serializable and round-trips', () => {
+    const cadence = createCadence(target, { scheduling: 'manual' });
+    cadence.start();
+
+    typeSequence(target, humanTimings(15), 1000, mockNow);
+    const snap = cadence.snapshot();
+    const json = JSON.stringify(snap);
+    const parsed = JSON.parse(json);
+
+    expect(parsed.dwells).toEqual(snap.dwells);
+    expect(parsed.flights).toEqual(snap.flights);
+    expect(parsed.corrections).toBe(snap.corrections);
+    expect(parsed.rollovers).toBe(snap.rollovers);
+    expect(parsed.total).toBe(snap.total);
+
+    cadence.destroy();
+  });
+
+  it('snapshot() returns empty arrays after reset()', () => {
+    const cadence = createCadence(target, { scheduling: 'manual' });
+    cadence.start();
+
+    typeSequence(target, humanTimings(20), 1000, mockNow);
+    cadence.reset();
+    const snap = cadence.snapshot();
+
+    expect(snap.dwells).toEqual([]);
+    expect(snap.flights).toEqual([]);
+    expect(snap.total).toBe(0);
+
+    cadence.destroy();
+  });
+
   it('works with custom weights', () => {
     // Heavy weight on correction ratio
     const cadence = createCadence(target, {
@@ -352,5 +404,167 @@ describe('createCadence integration', () => {
     expect(result.metrics.correctionRatio).toBeGreaterThan(0.5);
 
     cadence.destroy();
+  });
+
+  describe('snapshot events (recordEvents)', () => {
+    it('snapshot().events is undefined when recordEvents is not set', () => {
+      const cadence = createCadence(target, { scheduling: 'manual' });
+      cadence.start();
+
+      typeSequence(target, humanTimings(10), 1000, mockNow);
+      const snap = cadence.snapshot();
+
+      expect(snap.events).toBeUndefined();
+      cadence.destroy();
+    });
+
+    it('snapshot().events has correct length when enabled', () => {
+      const cadence = createCadence(target, { scheduling: 'manual', recordEvents: true });
+      cadence.start();
+
+      typeSequence(target, humanTimings(25), 1000, mockNow);
+      const snap = cadence.snapshot();
+
+      expect(snap.events).toBeDefined();
+      expect(snap.events).toHaveLength(25);
+      const events = snap.events ?? [];
+      expect(events[0]).toHaveProperty('pressTime');
+      expect(events[0]).toHaveProperty('releaseTime');
+      expect(events[0]).toHaveProperty('isCorrection');
+      expect(events[0]).toHaveProperty('isRollover');
+
+      cadence.destroy();
+    });
+
+    it('events are JSON-serializable and round-trip', () => {
+      const cadence = createCadence(target, { scheduling: 'manual', recordEvents: true });
+      cadence.start();
+
+      typeSequence(target, humanTimings(15), 1000, mockNow);
+      const snap = cadence.snapshot();
+      const json = JSON.stringify(snap);
+      const parsed = JSON.parse(json);
+
+      expect(parsed.events).toEqual(snap.events);
+      expect(parsed.events.length).toBe(15);
+      expect(typeof parsed.events[0].pressTime).toBe('number');
+      expect(typeof parsed.events[0].releaseTime).toBe('number');
+      expect(typeof parsed.events[0].isCorrection).toBe('boolean');
+      expect(typeof parsed.events[0].isRollover).toBe('boolean');
+
+      cadence.destroy();
+    });
+
+    it('events are unbounded while dwells are capped at windowSize', () => {
+      const cadence = createCadence(target, { scheduling: 'manual', windowSize: 10, recordEvents: true });
+      cadence.start();
+
+      typeSequence(target, humanTimings(30), 1000, mockNow);
+      const snap = cadence.snapshot();
+
+      expect(snap.dwells.length).toBe(10);  // capped at windowSize
+      expect(snap.events).toHaveLength(30);  // unbounded
+
+      cadence.destroy();
+    });
+
+    it('snapshot().events is a copy (not a reference)', () => {
+      const cadence = createCadence(target, { scheduling: 'manual', recordEvents: true });
+      cadence.start();
+
+      typeSequence(target, humanTimings(5), 1000, mockNow);
+      const snap1 = cadence.snapshot();
+
+      // Type more
+      typeSequence(target, humanTimings(5, 42), mockNow.value + 100, mockNow);
+      const snap2 = cadence.snapshot();
+
+      expect(snap1.events).toHaveLength(5);
+      expect(snap2.events).toHaveLength(10);
+
+      cadence.destroy();
+    });
+
+    it('reset() clears events', () => {
+      const cadence = createCadence(target, { scheduling: 'manual', recordEvents: true });
+      cadence.start();
+
+      typeSequence(target, humanTimings(10), 1000, mockNow);
+      expect(cadence.snapshot().events).toHaveLength(10);
+
+      cadence.reset();
+      expect(cadence.snapshot().events).toEqual([]);
+
+      cadence.destroy();
+    });
+  });
+
+  describe('events-based full-session scoring', () => {
+    it('uses full event stream when recordEvents is true and events exceed windowSize', () => {
+      const cadence = createCadence(target, {
+        scheduling: 'manual',
+        windowSize: 10,
+        recordEvents: true,
+        minSamples: 5,
+      });
+      cadence.start();
+
+      typeSequence(target, humanTimings(50), 1000, mockNow);
+      const result = cadence.analyze();
+
+      // sampleCount should reflect the full event stream, not the RingBuffer cap
+      expect(result.sampleCount).toBe(50);
+      expect(result.confident).toBe(true);
+
+      cadence.destroy();
+    });
+
+    it('falls back to RingBuffer when recordEvents is off', () => {
+      const cadence = createCadence(target, {
+        scheduling: 'manual',
+        windowSize: 10,
+        minSamples: 5,
+      });
+      cadence.start();
+
+      typeSequence(target, humanTimings(50), 1000, mockNow);
+      const result = cadence.analyze();
+
+      // Without recordEvents, sampleCount is capped at windowSize
+      expect(result.sampleCount).toBe(10);
+
+      cadence.destroy();
+    });
+
+    it('flights derived from events match snapshot flights for overlapping portion', () => {
+      const cadence = createCadence(target, {
+        scheduling: 'manual',
+        windowSize: 20,
+        recordEvents: true,
+      });
+      cadence.start();
+
+      typeSequence(target, humanTimings(20), 1000, mockNow);
+      const snap = cadence.snapshot();
+
+      // Derive flights from events manually
+      const events = snap.events ?? [];
+      const derivedFlights: number[] = [];
+      for (let i = 1; i < events.length; i++) {
+        if (!events[i].isRollover) {
+          const flight = events[i].pressTime - events[i - 1].releaseTime;
+          if (flight > 0) derivedFlights.push(flight);
+        }
+      }
+
+      // snapshot().flights comes from the RingBuffer; derived flights from events
+      // They should match when the RingBuffer hasn't overflowed
+      expect(snap.flights.length).toBe(derivedFlights.length);
+      for (let i = 0; i < snap.flights.length; i++) {
+        expect(snap.flights[i]).toBeCloseTo(derivedFlights[i], 5);
+      }
+
+      cadence.destroy();
+    });
   });
 });

@@ -53,6 +53,8 @@ export interface CadenceConfig {
   onScore?: (result: CadenceResult) => void;
   /** Analysis scheduling: 'idle' uses requestIdleCallback, 'manual' requires explicit analyze() calls. Default: 'idle' */
   scheduling?: 'idle' | 'manual';
+  /** Record per-keystroke event log for offline analysis. Default: false */
+  recordEvents?: boolean;
 }
 
 export interface Cadence {
@@ -64,15 +66,31 @@ export interface Cadence {
   analyze(): CadenceResult;
   /** Clear all data and reset score (does not stop listening) */
   reset(): void;
+  /** Return a plain-object copy of the current raw timing buffers */
+  snapshot(): TimingData;
   /** Stop listening and release all resources */
   destroy(): void;
 }
 
-/** Internal: raw timing data passed from observer to analyzer */
+/** A single keystroke's raw timing data (relative to session start). */
+export interface KeystrokeEvent {
+  /** Timestamp of keydown (ms, from performance.now()) */
+  pressTime: number;
+  /** Timestamp of keyup (ms, from performance.now()) */
+  releaseTime: number;
+  /** True if this was a Backspace/Delete */
+  isCorrection: boolean;
+  /** True if another key was still held when this key was pressed */
+  isRollover: boolean;
+}
+
+/** Raw timing data collected by the observer */
 export interface TimingData {
   dwells: number[];
   flights: number[];
   corrections: number;
   rollovers: number;
   total: number;
+  /** Per-keystroke event log (present when recordEvents was enabled) */
+  events?: KeystrokeEvent[];
 }
