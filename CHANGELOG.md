@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/RoloBits/isHumanCadence/compare/v1.5.0...v1.5.1) (2026-02-06)
+
+
+### Bug Fixes
+
+* fix export types on react and vue ([c89f771](https://github.com/RoloBits/isHumanCadence/commit/c89f7710f409f456bec065cd5300f8472c35f8fb))
+
 # [1.5.0](https://github.com/RoloBits/isHumanCadence/compare/v1.4.1...v1.5.0) (2026-02-05)
 
 
