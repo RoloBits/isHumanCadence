@@ -2,6 +2,20 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 import { createCadence } from '../index';
 import type { CadenceConfig, CadenceResult, CadenceSignals, Classification, MetricScores, TimingData } from '../types';
 
+export type {
+  Cadence,
+  CadenceConfig,
+  CadenceResult,
+  CadenceSignals,
+  Classification,
+  ClassificationThresholds,
+  KeystrokeEvent,
+  MetricWeights,
+  MetricScores,
+  TimingData,
+} from '../types';
+export { DEFAULT_WEIGHTS, DEFAULT_CLASSIFICATION_THRESHOLDS } from '../index';
+
 export interface UseHumanCadenceOptions {
   /** Sliding window size. Default: 50 */
   windowSize?: number;

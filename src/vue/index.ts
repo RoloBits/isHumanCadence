@@ -2,6 +2,20 @@ import { ref, onMounted, onUnmounted, type Ref, type ObjectDirective } from 'vue
 import { createCadence } from '../index';
 import type { CadenceConfig, CadenceResult, Classification, MetricScores, Cadence } from '../types';
 
+export type {
+  Cadence,
+  CadenceConfig,
+  CadenceResult,
+  CadenceSignals,
+  Classification,
+  ClassificationThresholds,
+  KeystrokeEvent,
+  MetricWeights,
+  MetricScores,
+  TimingData,
+} from '../types';
+export { DEFAULT_WEIGHTS, DEFAULT_CLASSIFICATION_THRESHOLDS } from '../index';
+
 export interface UseHumanCadenceOptions {
   /** Sliding window size. Default: 50 */
   windowSize?: number;
@@ -91,7 +105,7 @@ export function useHumanCadence(
 }
 
 /** Directive binding value: callback or config with callback. */
-type DirectiveBinding = ((result: CadenceResult) => void) | {
+export type DirectiveBinding = ((result: CadenceResult) => void) | {
   onScore: (result: CadenceResult) => void;
   windowSize?: number;
   minSamples?: number;

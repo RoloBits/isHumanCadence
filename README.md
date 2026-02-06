@@ -75,6 +75,8 @@ function LoginForm() {
 }
 ```
 
+All core types and constants (`CadenceResult`, `Classification`, `DEFAULT_WEIGHTS`, etc.) are re-exported from `@rolobits/is-human-cadence/react` — no need for a separate import.
+
 **Multi-field forms** — attach `ref` to a wrapper element instead of a single input. Keyboard events bubble up from child fields, so one hook covers the entire form.
 
 ```tsx
@@ -112,6 +114,8 @@ const { target, confident, classification } = useHumanCadence({ minSamples: 20 }
   <CaptchaChallenge v-if="confident && classification === 'bot'" />
 </template>
 ```
+
+All core types and constants are re-exported from `@rolobits/is-human-cadence/vue`.
 
 Or as a directive:
 
