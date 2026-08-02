@@ -409,6 +409,8 @@ If the developer says `ship it`, do not attempt the push. Tell them the rule exi
 
 The command never runs `gh pr merge` or `gh pr ready`. No bot attribution in the PR body, no emoji, no footer, no "Test plan" section, no secrets.
 
+**Core-logic PRs carry a preview.** When the change touches scoring behaviour in `src/` — a new option, a retuned constant, anything a consumer would observe in the score — the PR should let a reviewer see current vs proposed side by side. The `.github/workflows/pr-preview.yml` workflow builds `examples/react` at the preview subpath and publishes it to `gh-pages/pr-preview/pr-<N>/`, commenting the URL; it tears down on close. The demo instantiates the scorer twice — once at the current default, once with the change — fed by the same keystrokes, so the difference is visible rather than argued. Prefer shipping a behaviour change as an **opt-in option** so the demo can run both from one build (as `zeroRolloverScore` did) rather than needing two source checkouts. Whether the new behaviour becomes the default is an `api-steward` call, and the preview is the evidence for it.
+
 ## Step 13: Converge on the landed head
 
 A pass only counts against the head it ran on. Any commit made after a pass leaves a head nothing has cleared — which is why **both** passes run here and not only at Step 9. The Step 9 run fed the gate; this one checks what actually shipped.

@@ -25,6 +25,8 @@ export interface UseHumanCadenceOptions {
   weights?: CadenceConfig['weights'];
   /** Custom thresholds for hysteresis classification. */
   classificationThresholds?: CadenceConfig['classificationThresholds'];
+  /** Score for rolloverRate when zero rollovers are seen. Default: abstain. See CadenceConfig. */
+  zeroRolloverScore?: CadenceConfig['zeroRolloverScore'];
 }
 
 export interface UseHumanCadenceReturn {
@@ -80,6 +82,7 @@ export function useHumanCadence(
       minSamples: options?.minSamples,
       weights: options?.weights,
       classificationThresholds: options?.classificationThresholds,
+      zeroRolloverScore: options?.zeroRolloverScore,
       scheduling: 'idle',
       onScore,
     });

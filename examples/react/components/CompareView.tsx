@@ -1,0 +1,234 @@
+import { useState, useEffect, useCallback } from 'react';
+// Two DIFFERENT engine versions, scored against the same keystrokes:
+//   current  = the shipped code (main's src, via the baseline alias)
+//   proposed = this branch's src, with the change under review engaged
+import { useHumanCadence as useCurrentEngine } from '@rolobits/is-human-cadence-baseline/react';
+import { useHumanCadence as useProposedEngine } from '@rolobits/is-human-cadence/react';
+import type { MetricScores } from '@rolobits/is-human-cadence';
+import { MetricBreakdown } from './MetricBreakdown';
+import { MetricCards } from './MetricCards';
+import { SignalPanel } from './SignalPanel';
+
+const WINDOW = 50;
+const MIN = 20;
+
+type Model = ReturnType<typeof useProposedEngine>;
+
+export function CompareView() {
+  // Same keystrokes, two engines. `current` runs main's shipped code with
+  // default config. `proposed` runs this branch's code with the change engaged
+  // (here, zeroRolloverScore: 0.5 — main's engine has no such option). For a PR
+  // that changes a default instead of adding an option, both sides would use
+  // default config and the difference would come purely from the code.
+  const current = useCurrentEngine({ windowSize: WINDOW, minSamples: MIN });
+  const proposed = useProposedEngine({
+    windowSize: WINDOW,
+    minSamples: MIN,
+    zeroRolloverScore: 0.5,
+  });
+
+  // One history array per model, accumulated exactly like DemoView does.
+  const [currentHistory, setCurrentHistory] = useState<MetricScores[]>([]);
+  const [proposedHistory, setProposedHistory] = useState<MetricScores[]>([]);
+
+  useEffect(() => {
+    if (current.sampleCount === 0) return;
+    setCurrentHistory((prev) => [...prev, current.metrics]);
+  }, [current.metrics, current.sampleCount]);
+
+  useEffect(() => {
+    if (proposed.sampleCount === 0) return;
+    setProposedHistory((prev) => [...prev, proposed.metrics]);
+  }, [proposed.metrics, proposed.sampleCount]);
+
+  // Merge the two callback refs into one so both observe the same element.
+  // Both underlying refs are stable, so this stays stable — the node is not
+  // reattached on render and neither scorer loses its buffer.
+  const mergedRef = useCallback(
+    (node: HTMLElement | null) => {
+      current.ref(node);
+      proposed.ref(node);
+    },
+    [current.ref, proposed.ref],
+  );
+
+  const handleReset = useCallback(() => {
+    current.reset();
+    proposed.reset();
+    setCurrentHistory([]);
+    setProposedHistory([]);
+  }, [current.reset, proposed.reset]);
+
+  const [simulating, setSimulating] = useState(false);
+
+  // Drive a NO-OVERLAP sample through both live engines. This is the adversary
+  // the change targets: a script that fakes human RHYTHM — varied hold times,
+  // log-normal gaps, the odd pause — but never overlaps two keys, so rollovers
+  // stay at zero. Its other metrics land high, so Current (which abstains on
+  // rollover) passes it, while Proposed (rollover = 0.5) pulls it down. Events
+  // are dispatched (isTrusted: false), so both columns flag it as synthetic
+  // under Signals — it is a simulated bot and says so.
+  const simulateNoOverlapBot = useCallback(async () => {
+    const el = document.getElementById('cadence-input') as HTMLTextAreaElement | null;
+    if (!el || simulating) return;
+    handleReset();
+    el.focus();
+    el.value = '';
+    setSimulating(true);
+    const text =
+      'this looks like a person typing but every key is released before the next one is pressed';
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    // Box-Muller — real variance so dwell/flight/entropy read human-like.
+    const gauss = () => {
+      const u = Math.random() || 1e-9;
+      const v = Math.random();
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    };
+    for (const ch of text) {
+      const key = ch === ' ' ? ' ' : ch;
+      el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      el.value += ch;
+      const dwell = Math.max(35, Math.min(180, 78 + gauss() * 28));
+      await wait(dwell);
+      el.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
+      // Log-normal inter-key gap (median ~105ms) with a 12% chance of a pause,
+      // and always a full release before the next press — no overlap.
+      let flight = Math.exp(Math.log(105) + gauss() * 0.5);
+      if (Math.random() < 0.12) flight += 300 + Math.random() * 450;
+      await wait(Math.max(45, Math.min(950, flight)));
+    }
+    setSimulating(false);
+  }, [handleReset, simulating]);
+
+  const delta = proposed.score - current.score;
+
+  // The public metrics.rolloverRate reports the NO_DATA sentinel as 0, so with
+  // zero rollovers current reads 0.00 while proposed reads 0.50. That 0.00 is an
+  // abstention (no vote), not a bot score — flag it so the breakdown is not misread.
+  const currentAbstained =
+    current.metrics.rolloverRate === 0 && proposed.metrics.rolloverRate !== 0;
+
+  return (
+    <>
+      <header className="compare-intro">
+        <h2>Current vs Proposed engine</h2>
+        <p>
+          The same keystrokes run through two engines — <strong>Current</strong>{' '}
+          (the shipped code on <code>main</code>) and <strong>Proposed</strong>{' '}
+          (this branch, <code>zeroRolloverScore: 0.5</code>). Type naturally and
+          they agree: you overlap keys, so the change never fires. Press{' '}
+          <strong>Simulate a no-overlap bot</strong> for a script that fakes
+          human rhythm but never overlaps keys — <strong>Current passes it</strong>,{' '}
+          <strong>Proposed catches it</strong>, and both flag it as synthetic
+          under Signals.
+        </p>
+      </header>
+
+      <section className="form-section">
+        <div ref={mergedRef}>
+          <div className="field-group">
+            <label htmlFor="cadence-input">Type here to compare both scorers</label>
+            <textarea
+              id="cadence-input"
+              className="single-input"
+              rows={4}
+              placeholder="Start typing naturally, or press Simulate a no-overlap bot…"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+        </div>
+        <div className="form-footer">
+          <span className="sample-count">
+            {current.sampleCount} sample{current.sampleCount !== 1 ? 's' : ''}
+          </span>
+          <div className="form-actions">
+            <button
+              type="button"
+              className="btn-simulate"
+              onClick={simulateNoOverlapBot}
+              disabled={simulating}
+            >
+              {simulating ? 'Simulating…' : 'Simulate a no-overlap bot'}
+            </button>
+            <button type="button" className="btn-reset" onClick={handleReset} disabled={simulating}>
+              Reset
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div className="compare-grid">
+        <ModelColumn
+          title="Current"
+          subtitle="main engine · default"
+          model={current}
+          history={currentHistory}
+          abstained={currentAbstained}
+        />
+        <ModelColumn
+          title="Proposed"
+          subtitle="this branch · zeroRolloverScore: 0.5"
+          model={proposed}
+          history={proposedHistory}
+          delta={delta}
+        />
+      </div>
+    </>
+  );
+}
+
+interface ModelColumnProps {
+  title: string;
+  subtitle: string;
+  model: Model;
+  history: MetricScores[];
+  /** current only: true when it abstained on zero rollovers */
+  abstained?: boolean;
+  /** proposed only: signed difference from current */
+  delta?: number;
+}
+
+function ModelColumn({ title, subtitle, model, history, abstained, delta }: ModelColumnProps) {
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>{title}</h2>
+        <code className="panel-sub">{subtitle}</code>
+      </div>
+
+      <div className="big-score" aria-label={`score ${model.score.toFixed(2)}`}>
+        {model.score.toFixed(2)}
+        {delta !== undefined && Math.abs(delta) >= 0.005 && (
+          <span className={`delta ${delta < 0 ? 'down' : 'up'}`}>
+            {delta < 0 ? '−' : '+'}
+            {Math.abs(delta).toFixed(2)}
+          </span>
+        )}
+      </div>
+
+      <div className="panel-badges">
+        <span className={`classification-badge classification-${model.classification}`}>
+          {model.classification}
+        </span>
+        <span className={`confidence-badge ${model.confident ? 'confident' : 'not-confident'}`}>
+          {model.confident ? 'confident' : 'not confident'}
+        </span>
+      </div>
+
+      <MetricBreakdown metrics={model.metrics} />
+
+      {abstained && (
+        <p className="abstain-note">
+          The current scorer <strong>abstained</strong> on rollover: with zero
+          rollovers it casts no vote and redistributes that weight. The{' '}
+          <code>0.00</code> above is the reported sentinel, not a bot score.
+        </p>
+      )}
+
+      <MetricCards metrics={model.metrics} history={history} />
+
+      <SignalPanel signals={model.signals} />
+    </section>
+  );
+}

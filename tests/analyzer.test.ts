@@ -294,6 +294,45 @@ describe('createAnalyzer', () => {
       expect(result.score).toBe(0);
     });
 
+    it('zeroRolloverScore makes zero rollovers vote instead of abstaining', () => {
+      const rollOnlyWeights = {
+        dwellVariance: 0, flightFit: 0, timingEntropy: 0,
+        correctionRatio: 0, burstRegularity: 0, rolloverRate: 1.0,
+      };
+      // Opt in: zero rollovers now score 0.5 rather than dropping out.
+      const analyzer = createAnalyzer({
+        minSamples: 5,
+        weights: rollOnlyWeights,
+        zeroRolloverScore: 0.5,
+      });
+      const result = analyzer.analyze(
+        new Array(50).fill(50),
+        new Array(50).fill(100),
+        0, 0, 50,
+      );
+      expect(result.metrics.rolloverRate).toBe(0.5);
+      expect(result.score).toBe(0.5);
+    });
+
+    it('zeroRolloverScore lowers a zero-rollover bot score vs the abstaining default', () => {
+      const bot = generateGaussianBot(80); // gaussian bot emits zero rollovers
+      const abstain = createAnalyzer(defaultConfig);
+      const voting = createAnalyzer({ ...defaultConfig, zeroRolloverScore: 0.5 });
+      const a = abstain.analyze(bot.dwells, bot.flights, bot.corrections, bot.rollovers, bot.total);
+      const v = voting.analyze(bot.dwells, bot.flights, bot.corrections, bot.rollovers, bot.total);
+      // Opting in must not raise a zero-rollover bot's score, and here it lowers it.
+      expect(v.score).toBeLessThan(a.score);
+    });
+
+    it('zeroRolloverScore leaves a human who does roll over unchanged', () => {
+      const human = generateHumanLike(80); // emits rollovers > 0
+      const abstain = createAnalyzer(defaultConfig);
+      const voting = createAnalyzer({ ...defaultConfig, zeroRolloverScore: 0.5 });
+      const a = abstain.analyze(human.dwells, human.flights, human.corrections, human.rollovers, human.total);
+      const v = voting.analyze(human.dwells, human.flights, human.corrections, human.rollovers, human.total);
+      expect(v.score).toBe(a.score);
+    });
+
     it('non-zero rollovers score above neutral', () => {
       const rollOnlyWeights = {
         dwellVariance: 0, flightFit: 0, timingEntropy: 0,

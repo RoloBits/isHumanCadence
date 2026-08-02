@@ -1,59 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useHumanCadence } from '@rolobits/is-human-cadence/react';
-import type { MetricScores, Classification } from '@rolobits/is-human-cadence';
-import { SignupForm } from './components/SignupForm';
-import { ScoreGauge } from './components/ScoreGauge';
-import { MetricBreakdown } from './components/MetricBreakdown';
-import { MetricCards } from './components/MetricCards';
-import { SignalPanel } from './components/SignalPanel';
+import { DemoView } from './components/DemoView';
+import { CompareView } from './components/CompareView';
+
+// The build mode picks the view. The PR-preview build runs with --mode preview
+// (.env.preview sets VITE_APP_MODE=compare) and shows the comparison; the default
+// build has no VITE_APP_MODE and shows the product demo (README / GitHub Pages).
+const isCompare = import.meta.env.VITE_APP_MODE === 'compare';
 
 export function App() {
-  const { ref, score, confident, classification, metrics, signals, sampleCount, reset, snapshot } =
-    useHumanCadence({ windowSize: 50, minSamples: 20, recordEvents: true });
-
-  const [metricHistory, setMetricHistory] = useState<MetricScores[]>([]);
-
-  useEffect(() => {
-    if (sampleCount === 0) return;
-    setMetricHistory((prev) => [...prev, metrics]);
-  }, [metrics, sampleCount]);
-
-  const handleReset = useCallback(() => {
-    reset();
-    setMetricHistory([]);
-  }, [reset]);
-
   return (
     <main>
       <header>
         <h1>is-human-cadence</h1>
-        <p className="subtitle">
-          React signup form demo — keystroke dynamics bot detection
-        </p>
       </header>
 
-      <div className="demo-grid">
-        <SignupForm
-          cadenceRef={ref}
-          onReset={handleReset}
-          sampleCount={sampleCount}
-          score={score}
-          confident={confident}
-          classification={classification}
-          metrics={metrics}
-          signals={signals}
-          onSnapshot={snapshot}
-        />
-
-        <ScoreGauge score={score} confident={confident} classification={classification} />
-
-        <div className="data-grid">
-          <SignalPanel signals={signals} />
-          <MetricBreakdown metrics={metrics} />
-        </div>
-
-        <MetricCards metrics={metrics} history={metricHistory} />
-      </div>
+      {isCompare ? <CompareView /> : <DemoView />}
 
       <footer>
         <a

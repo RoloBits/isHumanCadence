@@ -1,22 +1,24 @@
 name: Deploy Demo
 
+# The main demo is served from the gh-pages branch root so that per-PR previews
+# can live alongside it under gh-pages/pr-preview/pr-<N>/ (see pr-preview.yml).
+# Pages source must be set to "Deploy from a branch: gh-pages /".
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: pages-main
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build Demo
+  build-deploy:
+    name: Build and deploy demo
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,17 +31,12 @@ jobs:
         working-directory: examples/react
       - run: npm run build
         working-directory: examples/react
-      - uses: actions/upload-pages-artifact@v3
+      - name: Publish to gh-pages root
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: examples/react/dist
-
-  deploy:
-    name: Deploy to Pages
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: examples/react/dist
+          destination_dir: .
+          # keep_files preserves pr-preview/* so a main deploy does not wipe
+          # active PR previews.
+          keep_files: true

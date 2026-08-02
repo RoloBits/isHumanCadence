@@ -105,6 +105,13 @@ export interface AnalyzerResult {
 export interface AnalyzerConfig {
   minSamples: number;
   weights: MetricWeights;
+  /**
+   * Score assigned to rolloverRate when zero rollovers are observed over enough
+   * samples. `undefined` (the default) abstains — the metric returns NO_DATA and
+   * its weight redistributes. A number (e.g. 0.5) makes zero rollovers count as a
+   * weak, bot-leaning signal instead. See research/ candidate B.
+   */
+  zeroRolloverScore?: number;
 }
 
 export interface Analyzer {
@@ -236,9 +243,13 @@ function scoreBurstRegularity(flights: number[]): number {
  * Humans: 25% average, 50% for fast typists. Bots: 0%.
  * Zero rollovers → NO_DATA (gated out of weighted average).
  */
-function scoreRolloverRate(rollovers: number, total: number): number {
+function scoreRolloverRate(
+  rollovers: number,
+  total: number,
+  zeroRolloverScore?: number,
+): number {
   if (total < MIN_ROLLOVER_SAMPLES) return 0.5;
-  if (rollovers === 0) return NO_DATA;
+  if (rollovers === 0) return zeroRolloverScore ?? NO_DATA;
   const ratio = rollovers / total;
   const raw = sigmoid(ratio, ROLLOVER_SIGMOID_SLOPE, ROLLOVER_SIGMOID_MIDPOINT);
   const floor = sigmoid(0, ROLLOVER_SIGMOID_SLOPE, ROLLOVER_SIGMOID_MIDPOINT);
@@ -246,7 +257,7 @@ function scoreRolloverRate(rollovers: number, total: number): number {
 }
 
 export function createAnalyzer(config: AnalyzerConfig): Analyzer {
-  const { minSamples, weights } = config;
+  const { minSamples, weights, zeroRolloverScore } = config;
 
   return {
     analyze(
@@ -265,7 +276,7 @@ export function createAnalyzer(config: AnalyzerConfig): Analyzer {
         timingEntropy: scoreTimingEntropy(flights),
         correctionRatio: scoreCorrectionRatio(corrections, total),
         burstRegularity: scoreBurstRegularity(flights),
-        rolloverRate: scoreRolloverRate(rollovers, total),
+        rolloverRate: scoreRolloverRate(rollovers, total, zeroRolloverScore),
       };
 
       // Public metrics: replace NO_DATA with 0 for reporting
