@@ -34,13 +34,31 @@ Looks at **when** you press keys, not **which** keys you press. Gives you a `0.0
 ```
 ## Why
 
-Bots type like machines constant intervals, zero variance, no typos. Humans are messy we pause to think, we hit backspace, we speed up on familiar words. This library picks up on that.
+Bots type like machines — constant intervals, zero variance, no typos. Humans are messy — we pause to think, we hit backspace, we speed up on familiar words. This library picks up on that.
+
+## What this is, and what it is not
+
+This raises the cost of drive-by automation — `setInterval` typing, paste-only bots, naive replay — and gives you a behavioural signal you did not have before. It is **not** a defense against an adversary who reads the client code: the library runs in the browser the attacker controls, and a forger built from the six metric names scores above a real-human control (0.8498 vs 0.8431 — measured, see `research/`). No weight configuration catches that forger.
+
+Use the score as one signal among several, and as a trigger for a fallback challenge (email verification, a simple question) — never as a hard gate.
+
+## How it works
+
+1. Passive `keydown`/`keyup` listeners capture timing only — dwell (how long a key is held), flight (gap between keys), rollover (next key pressed before the previous is released), and a correction count — into fixed-size ring buffers.
+2. Six metrics score the current window, each normalized so higher = more human.
+3. A metric with nothing to say (zero corrections, zero rollovers, no bursts) **abstains**: internally it returns a `NO_DATA` sentinel and its weight redistributes across the metrics that did vote. In the public `metrics` object an abstention reads as `0`.
+4. The score is the weighted mean of the metrics that voted.
+5. `classification` passes the score through a three-state Schmitt trigger with hysteresis (see [Classification with hysteresis](#classification-with-hysteresis)), so the label does not flicker at a boundary.
+
+`confident` is a sample-count threshold — `sampleCount >= minSamples` — not a statistical confidence.
 
 ## Install
 
 ```bash
 npm install @rolobits/is-human-cadence
 ```
+
+Zero runtime dependencies. The core entry gzips to about 3.5 KB (`dist/index.js`, 3485 bytes measured at v1.6.0).
 
 ## Usage
 
@@ -148,15 +166,16 @@ Each gets normalized to 0–1 and combined with configurable weights.
 
 Corrections are a one-directional human signal — bots don't backspace. The [Aalto 136M Keystrokes study (Dhakal et al., CHI 2018)](https://doi.org/10.1145/3173574.3174220) shows correction rates vary enormously across typists: fast typists average 3.4% (SD 2.05%), slow typists average 9.05% (SD 6.85%). Zero corrections over 50 keystrokes is normal for roughly half of skilled typists.
 
-Because the absence of corrections is uninformative rather than suspicious, the metric scores on a `[0.5, 1.0]` range:
+Because the absence of corrections is uninformative rather than suspicious, a zero-correction run **abstains**: the metric returns the internal `NO_DATA` sentinel, its 0.10 weight redistributes across the metrics that did vote, and the public `metrics.correctionRatio` reads `0` — meaning "did not vote", not "maximally bot-like".
 
 | Corrections | Score | Interpretation |
 |---|---|---|
-| 0% | **0.50** | Neutral — no signal either way |
-| 1–2% | 0.61–0.74 | Light human signal |
-| 5%+ | 0.96+ | Strong human signal |
+| 0% | abstains (reported as `0`) | No signal — weight redistributes |
+| 1% | ≈0.22 | Weak human signal |
+| 2% | ≈0.48 | Moderate human signal |
+| 5%+ | ≈0.93+ | Strong human signal |
 
-The other five metrics (dwell variance, flight fit, timing entropy, burst regularity, rollover rate) handle bot detection through timing analysis. Correction ratio only adds confidence when corrections are present — it never penalizes their absence.
+Ratios above 30% take a ×0.8 penalty (held-key artifacts). The other five metrics handle bot detection through timing analysis. Correction ratio only adds confidence when corrections are present — it never penalizes their absence.
 
 ## What it catches
 
@@ -308,9 +327,27 @@ What may score low:
 
 Use `result.signals` to understand *why* a score is low before acting on it.
 
-## Contributing
+## Contributing — agents welcome
 
-PRs welcome. Open an issue first to discuss.
+This project is built to be improved by autonomous agents as well as people, and the tooling for that is in the repo: four advisory agents under `.claude/agents/`, a tracked research record under `research/` with verified papers and reproducible experiments, a real human corpus (the CMU Killourhy–Maxion benchmark, one `curl` away — see `research/experiments/2026-08-02-cmu-real-human-baseline/DATA.md`), and a one-command benchmark: `npx vitest run --config research/vitest.config.ts`.
+
+**Agents propose, humans merge.** This is enforced by branch protection: every change lands through a pull request into `main` with a passing `Test` check; nobody can push to `main` directly. See `AGENTS.md` for the full contract and `CONTRIBUTING.md` for the flow.
+
+The evidence bar: `npm test` passing proves nothing about accuracy — the suite runs against synthetic fixtures generated by this repo. A PR claiming a detection improvement must report both human false positives on the real CMU corpus and bot false negatives, with the literal command output.
+
+### Known flaws — good places to start
+
+All measured; the numbers and methods live in `research/`.
+
+1. **A code-aware forger beats the library.** A forger that reads the six metric names scores 0.8498, above the real-human control (0.8431). No weight vector catches it (forger false-negative rate 1.000 under every configuration tried), and catching it at a 0.82 threshold rejects 59% of real humans. Structural — the open question is whether any client-side signal can do better.
+2. **Real humans have a low tail.** 16.7% of real CMU windows score below 0.70 (median 0.8044, floor 0.4635), concentrated in slow, even typists (18.9%; fast typists 0%). The synthetic human fixture never dips below 0.7781, so the test suite is blind to this.
+3. **The cheapest-to-fake metrics carry the most weight.** `rolloverRate` (0.25) and `correctionRatio` (0.10) go from 0 to ~1.0 purely by injecting events.
+4. **Abstention is invisible to consumers.** The public `metrics` object reports `NO_DATA` as `0`, so "did not vote" is indistinguishable from "scored zero".
+5. **Hysteresis is sticky.** Reaching `human` needs 0.70, but keeping it only needs 0.60 — a bot that once crossed 0.70 survives a drop that would have kept it out from a cold start.
+6. **Held Backspace inflates `correctionRatio`** — corrections increment before the key-repeat return in `observer.ts`. The current behaviour is pinned by a passing test, so the fix flips that test on purpose.
+7. **Ring-buffer and event-log dwells disagree under rollover.** Untested.
+8. **Vue adapter drift.** The Vue composable exposes no `signals`, `sampleCount`, `snapshot()` or `recordEvents` (React exposes all four), and has no test at all.
+9. **Broken toolchain entries.** `npm run test:coverage` fails (`@vitest/coverage-v8` is not a devDependency); `npm run validate:aalto` points at a directory that is not in the repo. `package.json`'s tagline still claims `<3KB gzip`; the measured size is 3485 bytes and nothing checks it.
 
 ```bash
 git clone https://github.com/RoloBits/isHumanCadence.git
