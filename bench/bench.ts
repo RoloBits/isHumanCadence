@@ -76,14 +76,54 @@ function loadCmuWindows(): TimingData[] {
   return windows;
 }
 
+// --- the metric-aware forger, ported from the forgeability ladder -------------
+function createRng(seed: number) {
+  let s = seed | 0;
+  return () => {
+    s ^= s << 13;
+    s ^= s >> 17;
+    s ^= s << 5;
+    return (s >>> 0) / 4294967296;
+  };
+}
+function normalRandom(rng: () => number): number {
+  const u1 = rng();
+  const u2 = rng();
+  return Math.sqrt(-2 * Math.log(u1 || 0.0001)) * Math.cos(2 * Math.PI * u2);
+}
+function forgerMetricAware(count: number, seed: number): TimingData {
+  const rng = createRng(seed);
+  const flights = Array.from({ length: count }, () =>
+    Math.max(15, Math.exp(4.5 + 0.6 * normalRandom(rng))),
+  );
+  const dwells = Array.from({ length: count }, () =>
+    Math.max(10, Math.exp(3.5 + 0.4 * normalRandom(rng))),
+  );
+  return {
+    dwells,
+    flights,
+    corrections: Math.floor(count * 0.07),
+    rollovers: Math.floor(count * 0.25),
+    total: count,
+  };
+}
+
 const bots: Record<string, (seed: number) => TimingData> = {
   constantBot: () => generateConstantBot(COUNT),
   randomJitterBot: (seed) => generateRandomJitterBot(COUNT, seed),
   gaussianBot: (seed) => generateGaussianBot(COUNT, seed),
   replayBot: (seed) => generateReplayBot(generateHumanLike(COUNT, seed)),
-  // The adversary that matters: human-shaped log-normal dwells and flights with
-  // corrections injected (generateHumanLike does both), rollovers stripped.
-  metricAwareForger: (seed) => ({ ...generateHumanLike(COUNT, seed), rollovers: 0 }),
+  // The adversary that matters, ported verbatim from
+  // research/experiments/2026-08-02-metric-forgeability-ladder/ladder.exp.ts so the
+  // bench and the research report the SAME forger. It builds its own log-normal
+  // timings — it does not borrow the human fixture — then injects the two
+  // count-based metrics an attacker gets for free.
+  //
+  // The previous version was `{...generateHumanLike(seed), rollovers: 0}`: the repo's
+  // own human fixture with one field zeroed. Its BOT_FN=1.0000 was close to arithmetic
+  // rather than a finding about adversaries, and in a project whose argument is "do not
+  // test your model against your model" that was the wrong generator to headline.
+  metricAwareForger: (seed) => forgerMetricAware(COUNT, seed),
 };
 
 it('benchmarks the working-tree engine against CMU humans and bot generators', () => {

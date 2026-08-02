@@ -13,7 +13,7 @@ Vite demo in `examples/react` deployed to GitHub Pages.
 
 Be honest about what it is: it raises the cost of drive-by automation. It is **not** a defense
 against an adversary who reads the client code — a forger that reads the six metric names
-scores above the real-human control, and no weight vector catches it (measured 2026-08-02).
+outscores both the synthetic human fixture and the median real human, and no weight vector catches it (measured 2026-08-02).
 Do not write copy, docs, or PR claims that pretend otherwise.
 
 ## The rule
@@ -121,7 +121,7 @@ Items without an in-repo path have their record not yet committed under `researc
 the numbers as reported, and re-measure before building on them.
 
 1. [#6](https://github.com/RoloBits/isHumanCadence/issues/6) **A code-aware forger beats the library.** Reads the six metric names, scores 0.8498 vs
-   the real-human control 0.8431; `metricAwareFN = 1.000` under every weight vector tried;
+   the synthetic human fixture at 0.8431 and the median real human at 0.8044; `metricAwareFN = 1.000` under every weight vector tried;
    catching it at a 0.82 threshold rejects 59% of real humans. Structural — see "What this
    project is".
 2. [#7](https://github.com/RoloBits/isHumanCadence/issues/7) **Real humans have a low tail.** 16.7% of real CMU windows score below 0.70 (median

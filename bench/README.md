@@ -48,7 +48,7 @@ BOT constantBot n=50 median=0.1386 fracAtOrAbove0.70=0.0000
 BOT randomJitterBot n=50 median=0.5669 fracAtOrAbove0.70=0.0000
 BOT gaussianBot n=50 median=0.7186 fracAtOrAbove0.70=0.6800
 BOT replayBot n=50 median=0.7671 fracAtOrAbove0.70=0.9800
-BOT metricAwareForger n=50 median=0.7913 fracAtOrAbove0.70=1.0000
+BOT metricAwareForger n=50 median=0.8419 fracAtOrAbove0.70=1.0000
 --- SUMMARY ---
 HUMAN_FP=0.1675
 BOT_FN constantBot=0.0000

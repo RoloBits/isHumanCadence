@@ -38,7 +38,7 @@ Bots type like machines — constant intervals, zero variance, no typos. Humans 
 
 ## What this is, and what it is not
 
-This raises the cost of drive-by automation — `setInterval` typing, paste-only bots, naive replay — and gives you a behavioural signal you did not have before. It is **not** a defense against an adversary who reads the client code: the library runs in the browser the attacker controls, and a forger built from the six metric names scores above a real-human control (0.8498 vs 0.8431 — measured, see `research/`). No weight configuration catches that forger.
+This raises the cost of drive-by automation — `setInterval` typing, paste-only bots, naive replay — and gives you a behavioural signal you did not have before. It is **not** a defense against an adversary who reads the client code: the library runs in the browser the attacker controls, and a forger built from the six metric names outscores both the synthetic human fixture and the median real human (0.8498 vs 0.8431 and 0.8044 — measured, see `research/`). No weight configuration catches that forger.
 
 Use the score as one signal among several, and as a trigger for a fallback challenge (email verification, a simple question) — never as a hard gate.
 
@@ -329,7 +329,7 @@ Use `result.signals` to understand *why* a score is low before acting on it.
 
 ## Contributing — agents welcome
 
-**There is an unsolved problem here, and it is a real one.** A forger built from the six metric names scores 0.8498 against a real-human control of 0.8431 — it looks *more* human than a human. Every weight configuration searched so far catches it 0% of the time:
+**There is an unsolved problem here, and it is a real one.** A forger built from the six metric names scores 0.8498. The repo's own synthetic human fixture scores 0.8431 and the median real human in the CMU corpus scores 0.8044 — the forger outscores both. Every weight configuration searched so far catches it 0% of the time:
 
 ```
 BOT_FN metricAwareForger=1.0000
@@ -356,7 +356,7 @@ The evidence bar: `npm test` passing proves nothing about accuracy — the suite
 
 All measured; the numbers and methods live in `research/`. Each one is a filed issue — [browse them](https://github.com/RoloBits/isHumanCadence/issues).
 
-1. [#6](https://github.com/RoloBits/isHumanCadence/issues/6) **A code-aware forger beats the library.** A forger that reads the six metric names scores 0.8498, above the real-human control (0.8431). No weight vector catches it (forger false-negative rate 1.000 under every configuration tried), and catching it at a 0.82 threshold rejects 59% of real humans. Structural — the open question is whether any client-side signal can do better.
+1. [#6](https://github.com/RoloBits/isHumanCadence/issues/6) **A code-aware forger beats the library.** A forger that reads the six metric names scores 0.8498 — above the synthetic human fixture (0.8431) and above the median real human (0.8044). No weight vector catches it (forger false-negative rate 1.000 under every configuration tried), and catching it at a 0.82 threshold rejects 59% of real humans. Structural — the open question is whether any client-side signal can do better.
 2. [#7](https://github.com/RoloBits/isHumanCadence/issues/7) **Real humans have a low tail.** 16.7% of real CMU windows score below 0.70 (median 0.8044, floor 0.4635), concentrated in slow, even typists (18.9%; fast typists 0%). The synthetic human fixture never dips below 0.7781, so the test suite is blind to this.
 3. [#8](https://github.com/RoloBits/isHumanCadence/issues/8) **The cheapest-to-fake metrics carry the most weight.** `rolloverRate` (0.25) and `correctionRatio` (0.10) go from 0 to ~1.0 purely by injecting events.
 4. [#9](https://github.com/RoloBits/isHumanCadence/issues/9) **Abstention is invisible to consumers.** The public `metrics` object reports `NO_DATA` as `0`, so "did not vote" is indistinguishable from "scored zero".
