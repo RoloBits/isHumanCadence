@@ -119,10 +119,24 @@ loud:
 Three outcomes:
 
 - **At least one `feat:`/`fix:`/`perf:`/breaking commit since the last tag** → commit-analyzer
-  picks the highest bump, `@semantic-release/npm` publishes to the registry,
-  `@semantic-release/github` cuts a release, `@semantic-release/changelog` writes `CHANGELOG.md`,
-  and `@semantic-release/git` commits `package.json`, `package-lock.json` and `CHANGELOG.md` back
-  with `chore(release): X.Y.Z [skip ci]`.
+  picks the highest bump, `@semantic-release/npm` publishes to the registry, and
+  `@semantic-release/github` cuts a GitHub Release carrying the generated notes and pushes the
+  `vX.Y.Z` tag.
+
+  **Nothing is committed back to `main`.** `@semantic-release/changelog` and
+  `@semantic-release/git` were removed on 2026-08-02, when `main` gained a ruleset requiring a
+  pull request. The commit-back would have been rejected — and it ran *after* the npm publish, so
+  the failure would have landed with the package already public and the repo left behind. Two
+  consequences to hold on to:
+
+  - **`package.json`'s `version` in the repo is stale on purpose.** It says 1.5.1 and will keep
+    saying it. The real version is the newest `v*` tag, the GitHub Release, and
+    `npm view @rolobits/is-human-cadence version`. Do not "fix" it by hand — semantic-release
+    computes the next version from the tags, not from that field.
+  - **`CHANGELOG.md` stops at 1.5.1.** History before that is real; nothing new is appended. The
+    changelog for anything newer is the GitHub Release notes.
+
+  A branch ruleset targets `refs/heads/*` only, so pushing the `vX.Y.Z` tag is unaffected.
 - **Only non-releasing types** → semantic-release runs, finds nothing to release, exits clean.
   Nothing publishes. This is the normal and expected outcome for most pushes.
 - **The workflow fails after the push** → the commit is on `main` and the version did not

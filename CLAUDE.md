@@ -29,9 +29,18 @@ library change, or they describe nothing**, and a new export is never a patch. C
 change confined to `examples/`, `docs/`, `.claude/`, `.github/` or `tests/` must never use `feat:`
 or `fix:`.
 
-After any publish, `@semantic-release/git` pushes `chore(release): x.y.z [skip ci]` back to `main`.
-Local `main` is then one commit behind, and a later `git merge --ff-only` will refuse until you
-pull.
+**`main` requires a pull request.** Ruleset `protect-main` (id `20248773`, repo-level, no bypass
+actors) enforces `pull_request` with 0 required approvals, `Test` as a required check, plus
+`non_fast_forward` and `deletion`. Direct pushes to `main` are refused — for everyone, including
+you. Locally, `lefthook` refuses the commit before it gets that far.
+
+**Nothing is committed back to `main` by the release.** `@semantic-release/changelog` and
+`@semantic-release/git` were removed on 2026-08-02 so the release job never has to push to a
+protected branch. That means `package.json`'s `version` field is **stale on purpose** — it reads
+1.5.1 and stays there. The real version is the newest `v*` tag, the GitHub Release, and
+`npm view @rolobits/is-human-cadence version`. `CHANGELOG.md` likewise stops at 1.5.1; the
+changelog for anything newer is the GitHub Release notes. Do not hand-edit either — semantic-release
+computes the next version from tags, not from `package.json`.
 
 ## The gates that exist, and the ones that do not
 

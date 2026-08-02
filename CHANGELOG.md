@@ -1,3 +1,10 @@
+> **This file stops at 1.5.1.** `@semantic-release/changelog` and `@semantic-release/git` were
+> removed on 2026-08-02 so the release job never pushes to `main`, which now requires a pull
+> request. Release notes from 1.5.1 onward are on the
+> [Releases page](https://github.com/RoloBits/isHumanCadence/releases). `package.json`'s `version`
+> field is stale for the same reason — the current version is
+> `npm view @rolobits/is-human-cadence version`.
+
 ## [1.5.1](https://github.com/RoloBits/isHumanCadence/compare/v1.5.0...v1.5.1) (2026-02-06)
 
 

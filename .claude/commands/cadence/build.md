@@ -66,7 +66,7 @@ The trap worth naming: a retune of a constant like `DEFAULT_WEIGHTS` (`src/analy
 All five, in order. Any failure stops the run — do not proceed quietly.
 
 1. `git status --porcelain` is clean. **A dirty tree has one recovery and it is not "carry on":** print what is dirty, tell the developer to commit it or `git stash` it, and re-run this command. Do not stash it for them and do not build around it.
-2. Current branch is `main`, and `git pull --ff-only` succeeds. This matters more here than in a normal repo: `@semantic-release/git` commits `package.json`, `package-lock.json` and `CHANGELOG.md` back to `main` after every publish (`.releaserc.json:12-13`), so local `main` is behind after any release — including one this command itself caused.
+2. Current branch is `main`, and `git pull --ff-only` succeeds. The release no longer commits anything back to `main` — `@semantic-release/changelog` and `@semantic-release/git` were removed on 2026-08-02 — so `main` only moves when a pull request merges. If `--ff-only` refuses, someone merged a PR since your last pull; that is normal, not a conflict.
 3. **Not a shallow clone** — `.git/shallow` must not exist. Steps 9, 11 and 13 all read `main..HEAD`; on a truncated history that range is wrong, and wrong silently.
 4. `gh auth status` is authenticated for `RoloBits/isHumanCadence`.
 5. **`npm run check` is green before you touch anything.** That is `npm run typecheck && npm run lint && npm run test && npm run build` (`package.json:45`). **Read the real test count out of that run and carry it forward — never a number from this file or from memory.** This command's own rule adds a test per new behaviour, so any hardcoded count is stale the first time it is right. A red baseline means the next failure tells you nothing.
@@ -371,16 +371,15 @@ Read the version out of that output. If it cannot run — it needs a `GITHUB_TOK
    I have fixed none of these.>
 
 **What you can do:**
-- Reply 'ship it' → fast-forward main and push. **This publishes.**
-- Reply 'pr' → push the branch and open a PR. Publishes only when it merges.
+- Reply 'pr' → push the branch and open a PR. **Merging it is what publishes.**
 - Reply 'fix now: <which>' → I'll fix it on this branch, re-run npm run check, and come back here
 - Reply 'fix later: <which>' → I'll land it, and it goes in the final report as still open
 - Reply 'as is: <which>' → your call that it is not a problem; nothing is recorded
 - Reply 'show diff' → I'll print the full diff
 - Reply 'cancel' → branch stays local, nothing is pushed, nothing is published
 
-**My recommendation:** <'pr' whenever the diff touches src/ — a published version is not
-  reversible and a PR costs one click | 'ship it' otherwise>
+**My recommendation:** <'pr' — it is the only path; main refuses direct pushes. Say here whether
+  the merge will publish, and which version.>
 ```
 
 Then STOP and wait. **Land only on an unambiguous yes.** No `cadence-core` finding is closed by you; each one is closed by *fix now*, *fix later* or *as is*, in the developer's words.
@@ -391,17 +390,11 @@ Then STOP and wait. **Land only on an unambiguous yes.** No `cadence-core` findi
 
 Two sub-paths. **Do not chain the steps with `&&`** — each one has to be checked before the next runs.
 
-### `ship it`
+### `ship it` — no longer possible, and say so plainly
 
-1. `git switch main`
-2. `git merge --ff-only <branch>` — if this is not a fast-forward, stop. `main` moved under you (most likely a `chore(release)` commit from a previous publish); rebase the branch and come back to the gate.
-3. `git push origin main`
-4. Verify it landed: `git ls-remote --heads origin main`. Compare the sha to your local HEAD. Different → the push did not take; stop, nothing published.
-5. Watch the release: `gh run watch` on the new run, or `gh run list --workflow=release.yml --limit 1`.
+**`main` refuses direct pushes.** Ruleset `protect-main` (id `20248773`, no bypass actors) requires a pull request, with `Test` as a required check. There is no admin override and no token in this repo that carries one.
 
-**If step 3 landed and the release run failed, say exactly that, first, before anything else.** That is a third state, not success and not failure: **the commit is on `main` and the version did not publish.** `main` and the registry now disagree. Name which step of `release.yml` failed and stop — do not retry it by pushing an empty commit.
-
-After a successful publish, `main` on the remote has one more commit than you do — `@semantic-release/git` pushes back `package.json`, `package-lock.json` and `CHANGELOG.md` as `chore(release): <version> [skip ci]`. `git pull --ff-only` before doing anything else.
+If the developer says `ship it`, do not attempt the push. Tell them the rule exists, that landing on `main` is a PR merge now, and offer `pr` instead. Attempting it wastes a round trip and produces a rejection message that reads like a credentials problem when it is not.
 
 ### `pr`
 
@@ -427,7 +420,7 @@ A pass only counts against the head it ran on. Any commit made after a pass leav
 
 Cap at 3 iterations.
 
-**After a `ship it`, this loop is not free.** Every further commit pushed to `main` is another `release.yml` run and another possible publish. A `chore:` follow-up publishes nothing, but a `fix:` follow-up ships a second version for the same piece of work. **Prefer batching every fix into the pre-gate state**, where a commit costs nothing. If something must be fixed after a publish, say what it will cost — a second version number, visible in the registry forever — and go back to the gate for it. On the `pr` path the loop is cheap and the normal rules apply.
+**This loop is cheap while the PR is open and expensive after it merges.** Commits pushed to the branch cost nothing — CI re-runs and nothing publishes. Once the PR merges, every further merge to `main` is another `release.yml` run: a `chore:` follow-up publishes nothing, a `fix:` follow-up ships a second version for the same piece of work. **Batch every fix into the open PR.** If something must be fixed after the merge, say what it will cost — a second version number, visible in the registry forever — and go back to the gate for it.
 
 ## Step 14: Report
 
