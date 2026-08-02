@@ -1,0 +1,45 @@
+name: PR Preview
+
+# Ephemeral per-PR demo deploy. Builds the PR's demo and publishes it to
+# gh-pages/pr-preview/pr-<N>/, comments the URL on the PR, and removes it when
+# the PR closes. Used by core-logic PRs to show current vs proposed behavior.
+#
+# The Vite base is overridden to the preview subpath — without this every asset
+# 404s, because the demo's own base is /isHumanCadence/ (the root site).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Build and deploy preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: github.event.action != 'closed'
+        with:
+          node-version: "lts/*"
+          cache: npm
+          cache-dependency-path: examples/react/package-lock.json
+      - name: Build demo at the preview subpath
+        if: github.event.action != 'closed'
+        working-directory: examples/react
+        run: |
+          npm ci
+          npm run build -- --base=/isHumanCadence/pr-preview/pr-${{ github.event.number }}/
+      - name: Deploy / tear down the preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: examples/react/dist
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
