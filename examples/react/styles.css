@@ -912,6 +912,11 @@ footer a:hover {
 
 /* Compare view: intro + action layout */
 .compare-intro {
+  /* display:block is load-bearing: a @media (min-width:1024px) rule sets
+     `header { display: flex }` for the app's h1+subtitle, and this block is
+     also a <header> — without this its heading and paragraph become flex
+     siblings and the heading collapses into a narrow column. */
+  display: block;
   max-width: 68ch;
   margin: 0 auto 1.25rem;
   text-align: left;
@@ -931,3 +936,15 @@ footer a:hover {
   gap: 0.5rem;
   align-items: center;
 }
+
+/* Compare view: the cold-start verdict under each live badge */
+.cold-start {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-dim, #9aa0aa);
+}
+.cold-start strong { text-transform: uppercase; letter-spacing: 0.02em; }
+.cold-start .classification-human { color: #4ade80; }
+.cold-start .classification-unknown { color: #fbbf24; }
+.cold-start .classification-bot { color: #f87171; }
+.cold-start-hint { opacity: 0.7; }

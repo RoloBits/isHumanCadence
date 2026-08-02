@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 //   proposed = this branch's src, with the change under review engaged
 import { useHumanCadence as useCurrentEngine } from '@rolobits/is-human-cadence-baseline/react';
 import { useHumanCadence as useProposedEngine } from '@rolobits/is-human-cadence/react';
+import { DEFAULT_CLASSIFICATION_THRESHOLDS } from '@rolobits/is-human-cadence';
 import type { MetricScores } from '@rolobits/is-human-cadence';
 import { MetricBreakdown } from './MetricBreakdown';
 import { MetricCards } from './MetricCards';
@@ -118,9 +119,13 @@ export function CompareView() {
           (this branch, <code>zeroRolloverScore: 0.5</code>). Type naturally and
           they agree: you overlap keys, so the change never fires. Press{' '}
           <strong>Simulate a no-overlap bot</strong> for a script that fakes
-          human rhythm but never overlaps keys — <strong>Current passes it</strong>,{' '}
-          <strong>Proposed catches it</strong>, and both flag it as synthetic
-          under Signals.
+          human rhythm but never overlaps keys — Proposed scores it lower, and
+          the <em>cold-start verdict</em> under each score is where that matters:
+          the same run that Current would admit as <code>human</code> stays{' '}
+          <code>unknown</code> under Proposed. The live badge is stickier than
+          that, because classification uses hysteresis — once a run has reached{' '}
+          <code>human</code> it holds until the score drops below 0.60. Both
+          engines flag the run as synthetic under Signals.
         </p>
       </header>
 
@@ -189,6 +194,13 @@ interface ModelColumnProps {
   delta?: number;
 }
 
+/** What the score alone would be classified as with no prior state. */
+function coldStart(score: number): 'bot' | 'unknown' | 'human' {
+  if (score >= DEFAULT_CLASSIFICATION_THRESHOLDS.unknownToHuman) return 'human';
+  if (score < DEFAULT_CLASSIFICATION_THRESHOLDS.unknownToBot) return 'bot';
+  return 'unknown';
+}
+
 function ModelColumn({ title, subtitle, model, history, abstained, delta }: ModelColumnProps) {
   return (
     <section className="panel">
@@ -215,6 +227,19 @@ function ModelColumn({ title, subtitle, model, history, abstained, delta }: Mode
           {model.confident ? 'confident' : 'not confident'}
         </span>
       </div>
+
+      {/* The live badge above is sticky: classification uses a Schmitt trigger, so
+          once a run reaches `human` (score >= 0.70) it stays there until the score
+          falls below 0.60. A fresh check with no history judges the score alone —
+          which is where this change actually bites. Show both, or the sticky
+          verdict hides the difference. */}
+      <p className="cold-start">
+        cold-start verdict:{' '}
+        <strong className={`classification-${coldStart(model.score)}`}>
+          {coldStart(model.score)}
+        </strong>{' '}
+        <span className="cold-start-hint">(same score, no prior state)</span>
+      </p>
 
       <MetricBreakdown metrics={model.metrics} />
 
