@@ -1,82 +1,114 @@
-# Synthesis — how to improve detection without calling humans bots
+# Synthesis — improving bot detection without classifying humans as bots
 
-2026-08-02. Reads the seven experiments and the HN field report together and ranks what to do.
-Every number here is reproduced from a `RESULTS.md` in this tree; nothing new is measured.
+Date: 2026-08-02. Repo HEAD `4a120da`. This ranks the concrete improvements that the
+2026-08-02 experiments produced, against the two error types that pull against each other:
 
-## The one conclusion the data forces
+- **False positive** — a real human not confidently `human` (or classified `bot`). The
+  developer's stated priority. Do not regress it.
+- **False negative** — a bot scored `human`. What bobbiechen demonstrated live
+  (`research/field-reports/2026-08-02-hn-forgery-critique.md`).
 
-**You cannot tune this library to stop an adversary who reads the code, and trying costs real
-humans.** The reweight search settles it: the metric-aware forger passes at `metricAwareFN = 1.000`
-under every weight vector tried, and the only lever that touches it — the threshold — flags 59% of
-real humans (`humanFP = 0.590`) at the point it first catches 40% of forgers
-(`experiments/2026-08-02-reweight-threshold-search/`). The library is MIT and open, so the forger
-knows exactly what the score rewards and supplies it. This is not a defect to fix; it is the shape
-of client-side timing scoring, and `browser-expert` said so before any of this ran.
+## The honest ceiling, stated once for all of it
 
-So the goal splits cleanly:
+No client-side timing library beats an adversary who owns the client. `browser-expert` holds
+this position in the repo and the reweight search proved the scoring half of it: against a
+forger that reads the six metric names from the open-source `src/analyzer.ts` and sets each
+input human-typical, **the false-negative rate is 1.000 under every weight vector tested**
+(`research/experiments/2026-08-02-reweight-threshold-search/`). The only lever that moves that
+forger is the classification threshold, and catching it (threshold 0.82) rejects **59% of real
+CMU humans**. So the goal here was never unforgeability. It is: (1) close holes that make
+forgery cheap, (2) weight hard-to-fake signals over easy ones, (3) do not raise the human
+false-positive rate. The measurements below are graded on those three, not on stopping a
+determined attacker — nothing in the six metrics does that.
 
-- **Against drive-by / naive automation** — the library works, and can work a bit better. Worth doing.
-- **Against a motivated, code-reading adversary** — unreachable by tuning. The honest move is to
-  narrow the claim, not chase the number.
+## What the four experiments measured
 
-## What we now know, in numbers
-
-| Finding | Number | Source |
+| experiment | rung | headline |
 |---|---|---|
-| Real humans have a low tail the fixture hides | median 0.8044, but **16.7% below 0.70**, floor 0.4635 | cmu-real-human-baseline |
-| The tail is slow, even typists | slowTypists 18.9% below 0.70; fastTypists 0.0% | widened-human-false-positive |
-| A code-aware forger beats real humans | **0.8498, 30/30 confident** vs human control 0.8431 | metric-forgeability-ladder |
-| The most-weighted metrics are the cheapest to fake | correctionRatio 0→0.97, rolloverRate 0→1.00 by injecting events | metric-forgeability-ladder |
-| Not faking rollover is also free | zero-rollover bots keep 0.19–0.24 of score via abstention | rollover-abstention-hole |
-| No weight vector catches the smart forger | metricAwareFN = 1.000 everywhere | reweight-threshold-search |
-| The naive rollover fix backfires on humans | candidate A pushes 14 real humans below the floor | zero-rollover-abstention-candidates |
+| rollover-abstention-hole (A) | fixtures | zero-rollover abstention hands gaussian/replay bots 0.21-0.24 of score; it is the only thing holding both above 0.70 |
+| metric-forgeability-ladder (B) | synthetic | `rolloverRate`/`correctionRatio` separate a distribution forger best (+1.00/+0.95) but are the cheapest to fake by event injection; a metric-aware forger hits 0.85, above the human control |
+| widened-human-false-positive (C) | synthetic | 14.6% of widened synthetic humans fall below 0.70, 18.9% of slow typists; echoes CMU's 16.7% |
+| reweight-threshold-search (D) | real humans + synthetic bots | no weight vector catches the metric-aware forger (FN 1.000); threshold that catches it rejects 59-82% of real humans |
 
-## Ranked actions
+Prior real-corpus work these build on: `research/experiments/2026-08-02-cmu-real-human-baseline/`
+(16.7% of real humans below 0.70, floor 0.4635) and
+`research/experiments/2026-08-02-zero-rollover-abstention-candidates/` (candidate B, zero-roll
+votes 0.5, is the only abstention fix that keeps every real window above the floor).
 
-Ranked by (evidence strength × effect) ÷ cost. Each says: build now, or finding only, and the route.
+## Ranked improvements
 
-### 1. Narrow the README claim to what the evidence supports — **build now, route: `/cadence:build` (docs)**
-The strongest, cheapest, safest action, and the only one that touches the code-aware forger — by
-not claiming to stop it. The library is a **drive-by filter**, not an adversary defense; the HN
-critic conceded exactly that. Say so: it raises the cost of casual automation and gives a
-behavioural signal, and a motivated attacker who reads the client can defeat it. This is a `docs:`
-change (publishes nothing) and it closes the gap between the marketing and the measurements. `f9fab4b`
-already showed this repo ships claims ahead of reality; this is the same fix, pointed at the README.
+Ranked by (evidence strength × impact on the two error rates ÷ forgery-cost-raised). **This
+ranking deviates from the prediction that "fix the rollover hole and the re-weight are the top
+two."** The re-weight search *failed* — no weight vector wins (D). And the rollover fix is
+weaker than predicted: it raises human false positives and does nothing to the real threat. The
+measured top item is on the human side, which is the stated priority.
 
-### 2. Down-weight the trivially-injectable metrics — **finding, route: `api-steward` then `/cadence:build`**
-`correctionRatio` (0.10) and `rolloverRate` (0.25) move from 0 to ~1.0 by injecting events — 0.35 of
-the weight bought for free by a forger. Shifting weight toward `flightFit` and `timingEntropy` (the
-two that need actual distributional realism) raises the naive-forger cost. **But:** it does nothing
-to the metric-aware forger (it fakes those too, just less cheaply), and it is a user-observable score
-change — a `feat:` at least, `BREAKING CHANGE` if a consumer tuned thresholds (see `releasing`
-skill). Needs `api-steward` to own the semver call, and re-validation on the real corpus, not the
-fixtures.
+### 1. Widen the human test fixture; treat the real-human sub-0.70 rate as the priority metric. BUILD NOW.
 
-### 3. Fix the zero-rollover abstention hole — candidate B only — **finding, route: `api-steward`**
-Voting a zero-rollover bot at 0.5 instead of abstaining drops gaussianBot 0.719→0.646 and replayBot
-0.767→0.693, and keeps every real CMU window above the floor. **The honest costs, both measured:** it
-only half-closes replay (30% of replay seeds still pass), and it moves 7.4 points of real humans out
-of confident-human (`fracAtOrAbove0.70` 0.833→0.759). A real improvement against naive bots with a
-real human cost — a genuine tradeoff for `api-steward`, not a free win. Candidates A and C are dead
-(they push 14 and 76 real humans below the floor).
+- **Evidence:** strongest available — real corpus. 16.7% of real CMU human windows score below
+  0.70 (`cmu-real-human-baseline`), independently echoed at 14.6% by the widened synthetic sweep
+  (C), both concentrated in slow typists.
+- **Impact:** directly on the developer's priority error. `generateHumanLike` is a single fast
+  typist (median flight ~90 ms, always `rollovers > 0`) and never dips below 0.7781, so the test
+  suite is blind to the ~1-in-6 real humans who are not confidently human on their first window —
+  and blind to human-FP regressions (candidate A slipped 14 real windows below the floor while
+  the fixture showed zero cost, `zero-rollover-abstention-candidates`).
+- **Forgery cost raised:** none — this is a test-fixture and evaluation change, not a scoring
+  change. That is why it ranks first: pure priority-error protection with no tradeoff.
+- **Route:** `/cadence:build` as a **test** change (adding slow/zero-rollover/correction human
+  fixtures is confined to `tests/` — must not be `feat:`/`fix:`, per the releasing skill). The
+  RESULTS files are the evidence. Widening the fixture is safe now; whether to also move the 0.70
+  threshold or lean harder on hysteresis for slow typists is an `api-steward` call.
 
-### 4. Protect the slow-typist tail — **finding, needs design**
-18.9% of slow-even typists fail confident-human today, and every action above that separates bots
-better makes this worse. Any change in actions 2–3 must be measured against the CMU slow tail, not
-the fixture. This is the counterweight that keeps "better detection" from meaning "reject more real
-people." No concrete change yet — it is the constraint the others answer to.
+### 2. Close the rollover abstention for the lazy/replay tier (candidate B: zero-rollover votes 0.5). BUILD ONLY IF THE HUMAN COST IS ACCEPTED — needs api-steward.
 
-### 5. The only structural defense is a signal off the client — **finding, `api-steward` + `browser-expert`**
-Server-side verification, a proof-of-work, or a signed timing record the client cannot forge. This is
-a different product with a different threat model and it breaks the zero-dependency, client-only,
-`<3KB` stance — so it is a question about a *new package*, not a new option. Out of scope for a tuning
-pass; recorded so it is not rediscovered.
+- **Evidence:** both sides measured — real corpus for the human cost, fixtures for the bot
+  benefit.
+- **Impact:** the only measured lever that lowers bot FN at all. Drops gaussianBot FN 0.680 →
+  0.020 and pulls replay's median below 0.70 (A, D). **But it raises real-human FP from 0.167 to
+  0.241** (D) — a 7.4-point regression on the stated-priority error — and does **nothing** to the
+  metric-aware forger (FN stays 1.000, D), because that forger emits rollovers and never triggers
+  the abstention.
+- **Forgery cost raised:** only against attackers who leave `rollovers: 0` — the drive-by tier
+  and naive replay. Zero against anyone who read the code.
+- **Route:** `/cadence:build` with `zero-rollover-abstention-candidates/RESULTS.md` and D as
+  evidence. This is a user-observable scoring change — every consumer's distribution moves — so
+  it is at least a `feat:` and an `api-steward` semver call (the releasing skill: a weight/behaviour
+  retune is user-observable). The honest framing for that decision: B buys separation against the
+  bots that are *already easiest to catch*, and charges real humans 7.4 points to do it. It is
+  defensible only if catching drive-by/replay bots is worth that, and it must ship paired with
+  item 1 so the human cost is visible in the suite.
 
-## The methodological finding, worth keeping
+### 3. Narrow the public claim and/or add an out-of-band signal — the six metrics cannot catch a code-reading adversary. FINDING (api-steward), no corpus needed.
 
-Every candidate looked free when measured on `tests/fixtures/` — the synthetic human always emits
-rollovers, so it never touches the changed branch. The real CMU corpus is what exposed the
-7.4-point human cost. **This repo's own fixtures cannot price a detection change.** The CMU baseline
-(or a real capture) has to be the oracle for anything that moves the score. That is the single most
-important process change this program produced, and it argues for getting a real corpus into the
-`/cadence:evidence` loop, not just this one experiment.
+- **Evidence:** decisive and already complete — metricAwareFN = 1.000 under baseline, candidate B,
+  up-weighted rollover, and both (D); threshold to dent it is catastrophic for humans; the HN
+  field report is the real-world confirmation (0.63 human+confident with the metrics known).
+- **Impact:** this is the ceiling, not a tuning knob. No weighting inside the current six metrics
+  separates a metric-aware forger from a real human, because the forger satisfies every metric the
+  score rewards. The only ways to raise forgery cost further are outside this experiment's scope: a
+  signal the attacker does not know to fake, or moving the verdict off the client (server-side
+  verification, signed timing). Both break the zero-dependency / `<3KB` / no-network stance and are
+  `api-steward`/`browser-expert` questions.
+- **Route:** **finding**, not a build. The cheap honest step is a README change: the current claim
+  invites reading the score as a verdict; the true statement is "raises cost against drive-by and
+  replay bots; not a defence against an adversary who reads the client code." That is an
+  `api-steward` decision about the product claim, with this synthesis as evidence.
+
+## What still needs a real corpus before anything ships
+
+- The **bot side is still synthetic** everywhere except the single self-reported HN data point.
+  Candidate B "drops the bot median below 0.70" is a fact about `generateGaussianBot`/
+  `generateReplayBot`, not about real automation. The next rung is live capture — Playwright/CDP
+  typing into the demo — which `browser-expert` designs and this agent would run.
+- The **human false-positive rate** is well-grounded on CMU (real, 16.7%) but CMU is 2009
+  fixed-text password typing with no corrections and no slow/fast label. Free-text and modern
+  hardware may move it either way. Item 1 is safe regardless (widening a fixture cannot make the
+  suite less representative); item 2's exact human cost should be re-measured on a free-text corpus
+  before it ships.
+
+## One-line routing
+
+- Item 1 → `/cadence:build` (test change), safe now.
+- Item 2 → `api-steward` decision, then `/cadence:build` (semver change), paired with item 1.
+- Item 3 → `api-steward` (product claim), no code experiment left to run.
