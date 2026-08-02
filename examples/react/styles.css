@@ -590,9 +590,24 @@ footer a:hover {
   }
 }
 
-/* Single-input textarea */
+/* Single-input textarea — matches the product demo's dark inputs */
 .single-input {
+  display: block;
+  width: 100%;
   min-height: 140px;
+  padding: 0.625rem 0.75rem;
+  font-family: var(--font);
+  font-size: 0.9375rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+.single-input:focus {
+  border-color: var(--accent);
 }
 
 /* Desktop: two-column, viewport-height layout */
