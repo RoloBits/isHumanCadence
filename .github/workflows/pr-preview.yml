@@ -25,18 +25,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # A second checkout of main's src only — this is the "current" engine the
+      # comparison scores against. The branch's src is the "new" engine.
+      - uses: actions/checkout@v4
+        if: github.event.action != 'closed'
+        with:
+          ref: main
+          path: baseline-main
+          sparse-checkout: src
       - uses: actions/setup-node@v4
         if: github.event.action != 'closed'
         with:
           node-version: "lts/*"
           cache: npm
           cache-dependency-path: examples/react/package-lock.json
-      - name: Build demo at the preview subpath
+      - name: Build the compare-only preview at the preview subpath
         if: github.event.action != 'closed'
         working-directory: examples/react
+        # --mode preview loads .env.preview (VITE_APP_MODE=compare), so the
+        # preview renders the comparison view only. VITE_BASELINE_SRC points the
+        # baseline engine alias at main's src, so the comparison is main's
+        # current engine vs this branch's engine on identical input.
+        env:
+          VITE_BASELINE_SRC: ${{ github.workspace }}/baseline-main/src
         run: |
           npm ci
-          npm run build -- --base=/isHumanCadence/pr-preview/pr-${{ github.event.number }}/
+          npm run build -- --mode preview --base=/isHumanCadence/pr-preview/pr-${{ github.event.number }}/
       - name: Deploy / tear down the preview
         uses: rossjrw/pr-preview-action@v1
         with:
