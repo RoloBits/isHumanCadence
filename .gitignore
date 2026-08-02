@@ -6,3 +6,6 @@ coverage
 .lefthook/
 .validation/*
 validation/
+
+# Research data blobs — reproducible via each experiment DATA.md
+research/**/*.csv
