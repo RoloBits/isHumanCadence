@@ -1,7 +1,7 @@
 {
   "name": "@rolobits/is-human-cadence",
   "version": "1.5.1",
-  "description": "Keystroke dynamics bot detection. Analyzes typing rhythm, not content. Zero deps, <3KB gzip.",
+  "description": "Keystroke dynamics bot detection. Analyzes typing rhythm, not content. Zero deps, ~3.5KB gzip.",
   "publishConfig": {
     "access": "public"
   },
@@ -45,8 +45,9 @@
     "check": "npm run typecheck && npm run lint && npm run test && npm run build",
     "prepublishOnly": "npm run check",
     "prepare": "lefthook install",
-    "extract:aalto": "tsx validation/aalto-extract.ts",
-    "validate:aalto": "tsx validation/aalto-benchmark.ts"
+    "bench": "vitest run --config bench/vitest.config.ts",
+    "extract:aalto": "node bench/require-validation.mjs && npx tsx validation/aalto-extract.ts",
+    "validate:aalto": "node bench/require-validation.mjs && npx tsx validation/aalto-benchmark.ts"
   },
   "peerDependencies": {
     "react": ">=17.0.0",
@@ -66,6 +67,7 @@
     "@testing-library/react": "16.3.2",
     "@types/react": "19.2.10",
     "@types/react-dom": "19.2.3",
+    "@vitest/coverage-v8": "^2.1.9",
     "@vue/test-utils": "2.4.6",
     "eslint": "9.39.2",
     "jsdom": "^25.0.0",
