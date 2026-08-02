@@ -1,44 +1,19 @@
-import { useState } from 'react';
 import { DemoView } from './components/DemoView';
 import { CompareView } from './components/CompareView';
 
-type Tab = 'demo' | 'compare';
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'demo', label: 'Demo' },
-  { id: 'compare', label: 'Compare: zeroRolloverScore (this PR)' },
-];
+// The build mode picks the view. The PR-preview build runs with --mode preview
+// (.env.preview sets VITE_APP_MODE=compare) and shows the comparison; the default
+// build has no VITE_APP_MODE and shows the product demo (README / GitHub Pages).
+const isCompare = import.meta.env.VITE_APP_MODE === 'compare';
 
 export function App() {
-  // Demo is the default so a README visitor lands on the product demo.
-  const [tab, setTab] = useState<Tab>('demo');
-
   return (
     <main>
       <header>
         <h1>is-human-cadence</h1>
       </header>
 
-      <div className="tab-strip" role="tablist" aria-label="Demo views">
-        {TABS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            id={`tab-${id}`}
-            aria-selected={tab === id}
-            aria-controls={`panel-${id}`}
-            className={`tab${tab === id ? ' active' : ''}`}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === 'demo' ? <DemoView /> : <CompareView />}
-      </div>
+      {isCompare ? <CompareView /> : <DemoView />}
 
       <footer>
         <a

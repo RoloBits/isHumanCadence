@@ -1,20 +1,45 @@
-import { useCallback } from 'react';
-import { useHumanCadence } from '@rolobits/is-human-cadence/react';
-import type { Classification } from '@rolobits/is-human-cadence';
+import { useState, useEffect, useCallback } from 'react';
+// Two DIFFERENT engine versions, scored against the same keystrokes:
+//   current  = the shipped code (main's src, via the baseline alias)
+//   proposed = this branch's src, with the change under review engaged
+import { useHumanCadence as useCurrentEngine } from '@rolobits/is-human-cadence-baseline/react';
+import { useHumanCadence as useProposedEngine } from '@rolobits/is-human-cadence/react';
+import type { MetricScores } from '@rolobits/is-human-cadence';
+import { MetricBreakdown } from './MetricBreakdown';
+import { MetricCards } from './MetricCards';
+import { SignalPanel } from './SignalPanel';
 
 const WINDOW = 50;
 const MIN = 20;
 
+type Model = ReturnType<typeof useProposedEngine>;
+
 export function CompareView() {
-  // Two independent scorers observing the SAME keystrokes. The only difference
-  // is the option under review: current abstains on zero rollovers, proposed
-  // scores them 0.5 (a weak bot lean).
-  const current = useHumanCadence({ windowSize: WINDOW, minSamples: MIN });
-  const proposed = useHumanCadence({
+  // Same keystrokes, two engines. `current` runs main's shipped code with
+  // default config. `proposed` runs this branch's code with the change engaged
+  // (here, zeroRolloverScore: 0.5 — main's engine has no such option). For a PR
+  // that changes a default instead of adding an option, both sides would use
+  // default config and the difference would come purely from the code.
+  const current = useCurrentEngine({ windowSize: WINDOW, minSamples: MIN });
+  const proposed = useProposedEngine({
     windowSize: WINDOW,
     minSamples: MIN,
     zeroRolloverScore: 0.5,
   });
+
+  // One history array per model, accumulated exactly like DemoView does.
+  const [currentHistory, setCurrentHistory] = useState<MetricScores[]>([]);
+  const [proposedHistory, setProposedHistory] = useState<MetricScores[]>([]);
+
+  useEffect(() => {
+    if (current.sampleCount === 0) return;
+    setCurrentHistory((prev) => [...prev, current.metrics]);
+  }, [current.metrics, current.sampleCount]);
+
+  useEffect(() => {
+    if (proposed.sampleCount === 0) return;
+    setProposedHistory((prev) => [...prev, proposed.metrics]);
+  }, [proposed.metrics, proposed.sampleCount]);
 
   // Merge the two callback refs into one so both observe the same element.
   // Both underlying refs are stable, so this stays stable — the node is not
@@ -30,24 +55,28 @@ export function CompareView() {
   const handleReset = useCallback(() => {
     current.reset();
     proposed.reset();
+    setCurrentHistory([]);
+    setProposedHistory([]);
   }, [current.reset, proposed.reset]);
 
-  // Same keystrokes, same config except zeroRolloverScore — so rolloverRate
-  // differs iff there were zero rollovers, which is exactly when current abstains.
-  const currentAbstains =
-    current.metrics.rolloverRate !== proposed.metrics.rolloverRate;
   const delta = proposed.score - current.score;
+
+  // The public metrics.rolloverRate reports the NO_DATA sentinel as 0, so with
+  // zero rollovers current reads 0.00 while proposed reads 0.50. That 0.00 is an
+  // abstention (no vote), not a bot score — flag it so the breakdown is not misread.
+  const currentAbstained =
+    current.metrics.rolloverRate === 0 && proposed.metrics.rolloverRate !== 0;
 
   return (
     <>
       <p className="explain">
-        The library can now treat a run with zero key-overlaps as a weak bot
-        signal instead of ignoring it. <strong>Current (default)</strong>{' '}
-        abstains when it sees no rollovers, redistributing that weight to the
-        other metrics; <strong>Proposed</strong> sets{' '}
-        <code>zeroRolloverScore: 0.5</code>, making zero rollovers a mild bot
-        lean. Type naturally and overlap a few keys — the two agree; automation
-        that never overlaps keys makes them diverge.
+        The same keystrokes are scored by two engine versions.{' '}
+        <strong>Current</strong> is the shipped code on <code>main</code>;{' '}
+        <strong>Proposed</strong> is this branch, with{' '}
+        <code>zeroRolloverScore: 0.5</code> engaged — it treats a run with zero
+        key-overlaps as a weak bot signal instead of abstaining. Type naturally
+        and overlap a few keys and the two agree; automation that never overlaps
+        keys makes them diverge.
       </p>
 
       <section className="form-section">
@@ -75,22 +104,18 @@ export function CompareView() {
       </section>
 
       <div className="compare-grid">
-        <Panel
-          title="Current (default)"
-          subtitle="zero rollovers abstain"
-          score={current.score}
-          classification={current.classification}
-          confident={current.confident}
-          rolloverRate={current.metrics.rolloverRate}
-          rolloverAbstained={currentAbstains}
+        <ModelColumn
+          title="Current"
+          subtitle="main engine · default"
+          model={current}
+          history={currentHistory}
+          abstained={currentAbstained}
         />
-        <Panel
+        <ModelColumn
           title="Proposed"
-          subtitle="zeroRolloverScore: 0.5"
-          score={proposed.score}
-          classification={proposed.classification}
-          confident={proposed.confident}
-          rolloverRate={proposed.metrics.rolloverRate}
+          subtitle="this branch · zeroRolloverScore: 0.5"
+          model={proposed}
+          history={proposedHistory}
           delta={delta}
         />
       </div>
@@ -98,29 +123,18 @@ export function CompareView() {
   );
 }
 
-interface PanelProps {
+interface ModelColumnProps {
   title: string;
   subtitle: string;
-  score: number;
-  classification: Classification;
-  confident: boolean;
-  rolloverRate: number;
+  model: Model;
+  history: MetricScores[];
   /** current only: true when it abstained on zero rollovers */
-  rolloverAbstained?: boolean;
+  abstained?: boolean;
   /** proposed only: signed difference from current */
   delta?: number;
 }
 
-function Panel({
-  title,
-  subtitle,
-  score,
-  classification,
-  confident,
-  rolloverRate,
-  rolloverAbstained,
-  delta,
-}: PanelProps) {
+function ModelColumn({ title, subtitle, model, history, abstained, delta }: ModelColumnProps) {
   return (
     <section className="panel">
       <div className="panel-head">
@@ -128,8 +142,8 @@ function Panel({
         <code className="panel-sub">{subtitle}</code>
       </div>
 
-      <div className="big-score" aria-label={`score ${score.toFixed(2)}`}>
-        {score.toFixed(2)}
+      <div className="big-score" aria-label={`score ${model.score.toFixed(2)}`}>
+        {model.score.toFixed(2)}
         {delta !== undefined && Math.abs(delta) >= 0.005 && (
           <span className={`delta ${delta < 0 ? 'down' : 'up'}`}>
             {delta < 0 ? '−' : '+'}
@@ -139,20 +153,27 @@ function Panel({
       </div>
 
       <div className="panel-badges">
-        <span className={`classification-badge classification-${classification}`}>
-          {classification}
+        <span className={`classification-badge classification-${model.classification}`}>
+          {model.classification}
         </span>
-        <span className={`confidence-badge ${confident ? 'confident' : 'not-confident'}`}>
-          {confident ? 'confident' : 'not confident'}
+        <span className={`confidence-badge ${model.confident ? 'confident' : 'not-confident'}`}>
+          {model.confident ? 'confident' : 'not confident'}
         </span>
       </div>
 
-      <div className="panel-metric">
-        <span className="panel-metric-name">rolloverRate</span>
-        <span className="panel-metric-value">
-          {rolloverAbstained ? 'abstained' : rolloverRate.toFixed(2)}
-        </span>
-      </div>
+      <MetricBreakdown metrics={model.metrics} />
+
+      {abstained && (
+        <p className="abstain-note">
+          The current scorer <strong>abstained</strong> on rollover: with zero
+          rollovers it casts no vote and redistributes that weight. The{' '}
+          <code>0.00</code> above is the reported sentinel, not a bot score.
+        </p>
+      )}
+
+      <MetricCards metrics={model.metrics} history={history} />
+
+      <SignalPanel signals={model.signals} />
     </section>
   );
 }
