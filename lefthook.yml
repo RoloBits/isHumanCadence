@@ -44,6 +44,25 @@ commit-msg:
           exit 1
         }
 
+        # A new public symbol is never a patch. f9fab4b typed `fix(demo):` while
+        # adding recordEvents and the exported KeystrokeEvent type, and shipped them
+        # as 1.4.1 — the staged-src check below would have waved it through, because
+        # src/ WAS staged. This is the check that catches that one.
+        case "$H" in
+          fix*|perf*)
+            if git diff --cached -- src/ | grep -qE '^\+export '; then
+              echo "refusing: '${H%%[(:]*}' adds an export under src/."
+              echo ""
+              git diff --cached -- src/ | grep -E '^\+export ' | sed 's/^/  /'
+              echo ""
+              echo "A new public symbol is never a patch — it is a feat: at minimum."
+              echo "If this is a pure move of an existing export, say so and use refactor:."
+              echo "See .claude/skills/public-api/SKILL.md and .claude/skills/releasing/SKILL.md"
+              exit 1
+            fi
+            ;;
+        esac
+
         case "$H" in
           feat*|fix*|perf*)
             git diff --cached --name-only | grep -q '^src/' || {
