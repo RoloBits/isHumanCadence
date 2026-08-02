@@ -894,3 +894,25 @@ footer a:hover {
 }
 .btn-simulate:hover:not(:disabled) { background: rgba(124, 92, 255, 0.12); }
 .btn-simulate:disabled { opacity: 0.5; cursor: default; }
+
+/* Compare view: intro + action layout */
+.compare-intro {
+  max-width: 68ch;
+  margin: 0 auto 1.25rem;
+  text-align: left;
+}
+.compare-intro h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}
+.compare-intro p {
+  margin: 0;
+  color: var(--fg-dim, #9aa0aa);
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}

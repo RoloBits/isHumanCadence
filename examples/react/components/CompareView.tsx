@@ -61,11 +61,13 @@ export function CompareView() {
 
   const [simulating, setSimulating] = useState(false);
 
-  // Drive a NO-OVERLAP sample through both live engines: press and fully
-  // release each key before the next, so rollovers stay at zero — the one case
-  // the change touches. A human almost never types this way; a script does.
-  // The events are dispatched (isTrusted: false), so both scorers honestly flag
-  // them under Signals as synthetic — this is a simulated bot, and it says so.
+  // Drive a NO-OVERLAP sample through both live engines. This is the adversary
+  // the change targets: a script that fakes human RHYTHM — varied hold times,
+  // log-normal gaps, the odd pause — but never overlaps two keys, so rollovers
+  // stay at zero. Its other metrics land high, so Current (which abstains on
+  // rollover) passes it, while Proposed (rollover = 0.5) pulls it down. Events
+  // are dispatched (isTrusted: false), so both columns flag it as synthetic
+  // under Signals — it is a simulated bot and says so.
   const simulateNoOverlapBot = useCallback(async () => {
     const el = document.getElementById('cadence-input') as HTMLTextAreaElement | null;
     if (!el || simulating) return;
@@ -74,15 +76,26 @@ export function CompareView() {
     el.value = '';
     setSimulating(true);
     const text =
-      'a script types one key at a time and never lets two keys overlap so rollover stays at zero';
+      'this looks like a person typing but every key is released before the next one is pressed';
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    // Box-Muller — real variance so dwell/flight/entropy read human-like.
+    const gauss = () => {
+      const u = Math.random() || 1e-9;
+      const v = Math.random();
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    };
     for (const ch of text) {
       const key = ch === ' ' ? ' ' : ch;
       el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
       el.value += ch;
-      await wait(30 + Math.random() * 25); // dwell, mild jitter → human-ish
+      const dwell = Math.max(35, Math.min(180, 78 + gauss() * 28));
+      await wait(dwell);
       el.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
-      await wait(70 + Math.random() * 50); // gap before next press → no overlap
+      // Log-normal inter-key gap (median ~105ms) with a 12% chance of a pause,
+      // and always a full release before the next press — no overlap.
+      let flight = Math.exp(Math.log(105) + gauss() * 0.5);
+      if (Math.random() < 0.12) flight += 300 + Math.random() * 450;
+      await wait(Math.max(45, Math.min(950, flight)));
     }
     setSimulating(false);
   }, [handleReset, simulating]);
@@ -97,15 +110,19 @@ export function CompareView() {
 
   return (
     <>
-      <p className="explain">
-        The same keystrokes are scored by two engine versions.{' '}
-        <strong>Current</strong> is the shipped code on <code>main</code>;{' '}
-        <strong>Proposed</strong> is this branch, with{' '}
-        <code>zeroRolloverScore: 0.5</code> engaged — it treats a run with zero
-        key-overlaps as a weak bot signal instead of abstaining. Type naturally
-        and overlap a few keys and the two agree; automation that never overlaps
-        keys makes them diverge.
-      </p>
+      <header className="compare-intro">
+        <h2>Current vs Proposed engine</h2>
+        <p>
+          The same keystrokes run through two engines — <strong>Current</strong>{' '}
+          (the shipped code on <code>main</code>) and <strong>Proposed</strong>{' '}
+          (this branch, <code>zeroRolloverScore: 0.5</code>). Type naturally and
+          they agree: you overlap keys, so the change never fires. Press{' '}
+          <strong>Simulate a no-overlap bot</strong> for a script that fakes
+          human rhythm but never overlaps keys — <strong>Current passes it</strong>,{' '}
+          <strong>Proposed catches it</strong>, and both flag it as synthetic
+          under Signals.
+        </p>
+      </header>
 
       <section className="form-section">
         <div ref={mergedRef}>
@@ -114,8 +131,8 @@ export function CompareView() {
             <textarea
               id="cadence-input"
               className="single-input"
-              rows={5}
-              placeholder="Start typing naturally, or paste a script's output..."
+              rows={4}
+              placeholder="Start typing naturally, or press Simulate a no-overlap bot…"
               autoComplete="off"
               spellCheck={false}
             />
@@ -125,25 +142,20 @@ export function CompareView() {
           <span className="sample-count">
             {current.sampleCount} sample{current.sampleCount !== 1 ? 's' : ''}
           </span>
-          <button
-            type="button"
-            className="btn-simulate"
-            onClick={simulateNoOverlapBot}
-            disabled={simulating}
-          >
-            {simulating ? 'Simulating…' : 'Simulate a no-overlap bot'}
-          </button>
-          <button type="button" className="btn-reset" onClick={handleReset} disabled={simulating}>
-            Reset
-          </button>
+          <div className="form-actions">
+            <button
+              type="button"
+              className="btn-simulate"
+              onClick={simulateNoOverlapBot}
+              disabled={simulating}
+            >
+              {simulating ? 'Simulating…' : 'Simulate a no-overlap bot'}
+            </button>
+            <button type="button" className="btn-reset" onClick={handleReset} disabled={simulating}>
+              Reset
+            </button>
+          </div>
         </div>
-        <p className="explain" style={{ marginTop: '0.75rem' }}>
-          Type naturally and the two columns match — you overlap keys, so the
-          change never fires. Press <strong>Simulate a no-overlap bot</strong> to
-          feed a zero-rollover sample: <code>Current</code> abstains on rollover
-          and <code>Proposed</code> scores it 0.5, so the totals diverge. Both
-          flag the run as synthetic under Signals.
-        </p>
       </section>
 
       <div className="compare-grid">
