@@ -880,3 +880,17 @@ footer a:hover {
   outline-offset: 2px;
   border-radius: 2px;
 }
+
+/* Compare view: the simulate-bot button */
+.btn-simulate {
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--fg, #e6e6e6);
+  background: transparent;
+  border: 1px solid var(--accent, #7c5cff);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-simulate:hover:not(:disabled) { background: rgba(124, 92, 255, 0.12); }
+.btn-simulate:disabled { opacity: 0.5; cursor: default; }

@@ -59,6 +59,34 @@ export function CompareView() {
     setProposedHistory([]);
   }, [current.reset, proposed.reset]);
 
+  const [simulating, setSimulating] = useState(false);
+
+  // Drive a NO-OVERLAP sample through both live engines: press and fully
+  // release each key before the next, so rollovers stay at zero — the one case
+  // the change touches. A human almost never types this way; a script does.
+  // The events are dispatched (isTrusted: false), so both scorers honestly flag
+  // them under Signals as synthetic — this is a simulated bot, and it says so.
+  const simulateNoOverlapBot = useCallback(async () => {
+    const el = document.getElementById('cadence-input') as HTMLTextAreaElement | null;
+    if (!el || simulating) return;
+    handleReset();
+    el.focus();
+    el.value = '';
+    setSimulating(true);
+    const text =
+      'a script types one key at a time and never lets two keys overlap so rollover stays at zero';
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    for (const ch of text) {
+      const key = ch === ' ' ? ' ' : ch;
+      el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      el.value += ch;
+      await wait(30 + Math.random() * 25); // dwell, mild jitter → human-ish
+      el.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
+      await wait(70 + Math.random() * 50); // gap before next press → no overlap
+    }
+    setSimulating(false);
+  }, [handleReset, simulating]);
+
   const delta = proposed.score - current.score;
 
   // The public metrics.rolloverRate reports the NO_DATA sentinel as 0, so with
@@ -97,10 +125,25 @@ export function CompareView() {
           <span className="sample-count">
             {current.sampleCount} sample{current.sampleCount !== 1 ? 's' : ''}
           </span>
-          <button type="button" className="btn-reset" onClick={handleReset}>
+          <button
+            type="button"
+            className="btn-simulate"
+            onClick={simulateNoOverlapBot}
+            disabled={simulating}
+          >
+            {simulating ? 'Simulating…' : 'Simulate a no-overlap bot'}
+          </button>
+          <button type="button" className="btn-reset" onClick={handleReset} disabled={simulating}>
             Reset
           </button>
         </div>
+        <p className="explain" style={{ marginTop: '0.75rem' }}>
+          Type naturally and the two columns match — you overlap keys, so the
+          change never fires. Press <strong>Simulate a no-overlap bot</strong> to
+          feed a zero-rollover sample: <code>Current</code> abstains on rollover
+          and <code>Proposed</code> scores it 0.5, so the totals diverge. Both
+          flag the run as synthetic under Signals.
+        </p>
       </section>
 
       <div className="compare-grid">
