@@ -120,35 +120,32 @@ what is already known.
 Items without an in-repo path have their record not yet committed under `research/` — treat
 the numbers as reported, and re-measure before building on them.
 
-1. **A code-aware forger beats the library.** Reads the six metric names, scores 0.8498 vs
+1. [#6](https://github.com/RoloBits/isHumanCadence/issues/6) **A code-aware forger beats the library.** Reads the six metric names, scores 0.8498 vs
    the real-human control 0.8431; `metricAwareFN = 1.000` under every weight vector tried;
    catching it at a 0.82 threshold rejects 59% of real humans. Structural — see "What this
    project is".
-2. **Real humans have a low tail.** 16.7% of real CMU windows score below 0.70 (median
+2. [#7](https://github.com/RoloBits/isHumanCadence/issues/7) **Real humans have a low tail.** 16.7% of real CMU windows score below 0.70 (median
    0.8044, floor 0.4635), concentrated in slow, even typists. The synthetic human never
    dips below 0.7781, so the suite is blind to it.
-3. **The cheapest-to-fake metrics carry the most weight.** `rolloverRate` (0.25) and
+3. [#8](https://github.com/RoloBits/isHumanCadence/issues/8) **The cheapest-to-fake metrics carry the most weight.** `rolloverRate` (0.25) and
    `correctionRatio` (0.10) go 0 → ~1.0 purely by injecting events.
-4. **Abstention is invisible to consumers.** `analyze` collapses the internal `NO_DATA`
+4. [#9](https://github.com/RoloBits/isHumanCadence/issues/9) **Abstention is invisible to consumers.** `analyze` collapses the internal `NO_DATA`
    sentinel to `0` in the public `metrics` object — "did not vote" reads as "scored zero".
-5. **Hysteresis is sticky.** `classify` keeps `human` until the score drops below 0.60,
+5. [#10](https://github.com/RoloBits/isHumanCadence/issues/10) **Hysteresis is sticky.** `classify` keeps `human` until the score drops below 0.60,
    though reaching `human` needs 0.70 — a bot that once crossed 0.70 survives a drop that
    would have kept it out from a cold start.
-6. **Held Backspace inflates `correctionRatio`.** `src/observer.ts:82` increments
+6. [#11](https://github.com/RoloBits/isHumanCadence/issues/11) **Held Backspace inflates `correctionRatio`.** `src/observer.ts:82` increments
    corrections before the `repeat` return. Pinned by `tests/observer.test.ts:429` — fixing
    it turns a green test red on purpose.
-7. **Ring-buffer and event-log dwells disagree under rollover.** `src/observer.ts:122`
+7. [#12](https://github.com/RoloBits/isHumanCadence/issues/12) **Ring-buffer and event-log dwells disagree under rollover.** `src/observer.ts:122`
    (single `lastPressTime`) vs `:127-137` (FIFO `pendingPresses`). Untested.
-8. **Vue adapter drift.** Vue's `useHumanCadence` exposes no `signals`, `sampleCount`,
+8. [#13](https://github.com/RoloBits/isHumanCadence/issues/13) **Vue adapter drift.** Vue's `useHumanCadence` exposes no `signals`, `sampleCount`,
    `snapshot()` or `recordEvents`; React's exposes all four. `tests/vue/` covers only the
    directive — the composable has no test at all.
-9. **The `<3KB gzip` claim is false.** `dist/index.js` gzips to 3485 bytes (measured
-   2026-08-02); claimed in `package.json` and the README badge, checked by nothing.
-10. **Broken toolchain entry points.** `npm run test:coverage` fails
-    (`@vitest/coverage-v8` missing); `npm run validate:aalto` points at the absent
-    `validation/` and its runner `tsx` is not a devDependency.
-11. **README metric drift.** The `correctionRatio` table describes a version of the metric
-    that no longer exists.
+9. **Nothing checks the bundle size.** `npm run size` exists but is in neither
+   `npm run check` nor CI, so a regression past the stated ~3.5KB ships green. The false
+   `<3KB` tagline, the broken `npm run test:coverage`, and the unguarded `validate:aalto`
+   were all fixed in the change that added `npm run bench`.
 
 ## House rules
 

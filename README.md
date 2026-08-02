@@ -337,17 +337,17 @@ The evidence bar: `npm test` passing proves nothing about accuracy — the suite
 
 ### Known flaws — good places to start
 
-All measured; the numbers and methods live in `research/`.
+All measured; the numbers and methods live in `research/`. Each one is a filed issue — [browse them](https://github.com/RoloBits/isHumanCadence/issues).
 
-1. **A code-aware forger beats the library.** A forger that reads the six metric names scores 0.8498, above the real-human control (0.8431). No weight vector catches it (forger false-negative rate 1.000 under every configuration tried), and catching it at a 0.82 threshold rejects 59% of real humans. Structural — the open question is whether any client-side signal can do better.
-2. **Real humans have a low tail.** 16.7% of real CMU windows score below 0.70 (median 0.8044, floor 0.4635), concentrated in slow, even typists (18.9%; fast typists 0%). The synthetic human fixture never dips below 0.7781, so the test suite is blind to this.
-3. **The cheapest-to-fake metrics carry the most weight.** `rolloverRate` (0.25) and `correctionRatio` (0.10) go from 0 to ~1.0 purely by injecting events.
-4. **Abstention is invisible to consumers.** The public `metrics` object reports `NO_DATA` as `0`, so "did not vote" is indistinguishable from "scored zero".
-5. **Hysteresis is sticky.** Reaching `human` needs 0.70, but keeping it only needs 0.60 — a bot that once crossed 0.70 survives a drop that would have kept it out from a cold start.
-6. **Held Backspace inflates `correctionRatio`** — corrections increment before the key-repeat return in `observer.ts`. The current behaviour is pinned by a passing test, so the fix flips that test on purpose.
-7. **Ring-buffer and event-log dwells disagree under rollover.** Untested.
-8. **Vue adapter drift.** The Vue composable exposes no `signals`, `sampleCount`, `snapshot()` or `recordEvents` (React exposes all four), and has no test at all.
-9. **Broken toolchain entries.** `npm run test:coverage` fails (`@vitest/coverage-v8` is not a devDependency); `npm run validate:aalto` points at a directory that is not in the repo. `package.json`'s tagline still claims `<3KB gzip`; the measured size is 3485 bytes and nothing checks it.
+1. [#6](https://github.com/RoloBits/isHumanCadence/issues/6) **A code-aware forger beats the library.** A forger that reads the six metric names scores 0.8498, above the real-human control (0.8431). No weight vector catches it (forger false-negative rate 1.000 under every configuration tried), and catching it at a 0.82 threshold rejects 59% of real humans. Structural — the open question is whether any client-side signal can do better.
+2. [#7](https://github.com/RoloBits/isHumanCadence/issues/7) **Real humans have a low tail.** 16.7% of real CMU windows score below 0.70 (median 0.8044, floor 0.4635), concentrated in slow, even typists (18.9%; fast typists 0%). The synthetic human fixture never dips below 0.7781, so the test suite is blind to this.
+3. [#8](https://github.com/RoloBits/isHumanCadence/issues/8) **The cheapest-to-fake metrics carry the most weight.** `rolloverRate` (0.25) and `correctionRatio` (0.10) go from 0 to ~1.0 purely by injecting events.
+4. [#9](https://github.com/RoloBits/isHumanCadence/issues/9) **Abstention is invisible to consumers.** The public `metrics` object reports `NO_DATA` as `0`, so "did not vote" is indistinguishable from "scored zero".
+5. [#10](https://github.com/RoloBits/isHumanCadence/issues/10) **Hysteresis is sticky.** Reaching `human` needs 0.70, but keeping it only needs 0.60 — a bot that once crossed 0.70 survives a drop that would have kept it out from a cold start.
+6. [#11](https://github.com/RoloBits/isHumanCadence/issues/11) **Held Backspace inflates `correctionRatio`** — corrections increment before the key-repeat return in `observer.ts`. The current behaviour is pinned by a passing test, so the fix flips that test on purpose.
+7. [#12](https://github.com/RoloBits/isHumanCadence/issues/12) **Ring-buffer and event-log dwells disagree under rollover.** Untested.
+8. [#13](https://github.com/RoloBits/isHumanCadence/issues/13) **Vue adapter drift.** The Vue composable exposes no `signals`, `sampleCount`, `snapshot()` or `recordEvents` (React exposes all four), and has no test at all.
+9. **Nothing checks the bundle size.** `npm run size` exists but is in neither `npm run check` nor CI, so a regression past the stated ~3.5KB ships green. (The broken `test:coverage` and `validate:aalto` entries, and the false `<3KB` tagline, were fixed in the same change that added `npm run bench`.)
 
 ```bash
 git clone https://github.com/RoloBits/isHumanCadence.git
