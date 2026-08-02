@@ -71,7 +71,11 @@ export function createCadence(
   const recordEvents = config?.recordEvents === true;
   const classificationThresholds = { ...DEFAULT_CLASSIFICATION_THRESHOLDS, ...config?.classificationThresholds };
   const observer = createObserver(target, { windowSize, recordEvents });
-  const analyzer = createAnalyzer({ minSamples, weights });
+  const analyzer = createAnalyzer({
+    minSamples,
+    weights,
+    zeroRolloverScore: config?.zeroRolloverScore,
+  });
 
   let dirty = false;
   let idleHandle: number | undefined;

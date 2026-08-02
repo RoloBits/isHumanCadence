@@ -72,6 +72,14 @@ export interface CadenceConfig {
   recordEvents?: boolean;
   /** Custom thresholds for hysteresis classification. Default: see DEFAULT_CLASSIFICATION_THRESHOLDS */
   classificationThresholds?: Partial<ClassificationThresholds>;
+  /**
+   * Score for rolloverRate when zero rollovers are seen. Default: undefined
+   * (abstain — the metric drops out and its weight redistributes). Set to a
+   * number such as 0.5 to make zero rollovers count as a weak bot-leaning signal
+   * instead, closing the gap where a bot that never overlaps keys dodges the
+   * highest-weighted metric for free. See research/ candidate B.
+   */
+  zeroRolloverScore?: number;
 }
 
 export interface Cadence {
