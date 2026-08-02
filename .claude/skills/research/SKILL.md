@@ -11,10 +11,17 @@ Its job:
 2. Write the findings to a single Markdown file, citing each claim's source.
 3. Save it where the repo already keeps such notes; match the existing convention, and if there is none, put it somewhere sensible and say where.
 
-In this repo the convention is `.claude/worklog/` — one file per topic, with the format in
-`.claude/commands/worklog.md`. Browser, spec and bundler questions have an owner already:
-`browser-expert`. Route to it first, and use this skill for what it says is *"neither documented
-nor measured"*.
+In this repo, route before spawning a generic agent — two owners already exist:
+
+- **Papers, algorithms, experiments, anything about keystroke-dynamics literature or measuring
+  this library against alternatives** → the `researcher` agent. Its record lives in `research/`
+  (papers with verified links, experiments with hypothesis and results), which is exactly the
+  "where the repo keeps such notes" this skill asks for.
+- **Browser, spec and bundler facts** → `browser-expert` first; what it calls *"neither documented
+  nor measured"* becomes an experiment for `researcher` to run.
+
+Everything else follows the generic recipe above, saved to `.claude/worklog/` in the format of
+`.claude/commands/worklog.md`.
 
 ---
 

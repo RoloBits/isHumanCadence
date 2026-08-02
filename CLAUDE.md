@@ -93,12 +93,16 @@ Use `/cadence:evidence` for anything claiming the library got better.
 
 ## What is in `.claude/`
 
-**Agents** — consult via the Agent tool, none of them writes:
+**Agents** — consult via the Agent tool:
 
-- `cadence-core` — what `src/` and `tests/` do right now, with `file.ts:line` cites.
+- `cadence-core` — what `src/` and `tests/` do right now, with `file.ts:line` cites. Never writes.
 - `browser-expert` — what the browser, the bundler and npm do. Its measured column is empty and it
-  says so.
-- `api-steward` — what the package should be: API shape, semver, thesis, non-goals.
+  says so. Never writes.
+- `api-steward` — what the package should be: API shape, semver, thesis, non-goals. Never writes.
+- `researcher` — the empirical arm: papers, experiments, algorithm comparisons. The only agent
+  that writes, and only under `research/` — its record of hypotheses, results and verified paper
+  entries, tracked in git. An improvement it finds routes to `/cadence:build` with a `RESULTS.md`
+  as evidence; it never edits `src/`.
 
 **Commands** — `/cadence:build` (plan gate → implement → release gate → land),
 `/cadence:planner` (two blind reviewers, cross-examined, three verdicts), `/cadence:evidence`

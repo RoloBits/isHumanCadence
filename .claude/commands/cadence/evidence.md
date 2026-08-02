@@ -240,5 +240,6 @@ Print the worklog path and a one-line tally — "2 ACCEPTED, 0 REJECTED, 3 EXERC
 - Not a bug finder — it checks that behaviour matches a claim. A bug found here is a follow-up.
 - Not a fixer — `/cadence:build` makes the change this later provides evidence for.
 - Not a benchmark harness — it runs the benchmark that exists (`npm run validate:aalto`) and reports whether it could. Building a new corpus or a new runner is not this command's job.
+- Not R&D — comparing algorithms, reading the literature, and running exploratory experiments is the `researcher` agent, which records under `research/`. This command produces verdicts on claims about *changes*; the researcher explores what the change should be.
 - Not a release decision — the `releasing` skill owns whether a measured result is good enough to publish, and what the commit type does.
 - Not a sign-off — it records what was observed; the developer decides whether the claim is settled.

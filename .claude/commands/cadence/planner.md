@@ -195,7 +195,7 @@ If the verdict is SOUND, **say so plainly and stop. Do not manufacture findings 
 - **Never force convergence.** An honest disagreement, clearly stated, is a valid and useful result.
 - **Questions of intent go to the developer, never to a reviewer.** The agents may settle facts between themselves; they may not decide what the developer wants.
 - **Every finding cites a source** — a doc line, a measured result, a `file.ts:line`, a named decision. Uncited findings are labelled opinion.
-- **A documented-but-unmeasured browser claim blocks the plan** and comes back with an experiment attached.
+- **A documented-but-unmeasured browser claim blocks the plan** and comes back with an experiment attached — named as a task for the `researcher` agent, which runs experiments and records them under `research/`.
 - **A retuned constant with no named measurement blocks the plan.** The Aalto oracle is not in the repo.
 - **Name what the plan ships.** Commit type, version bump, and whether the plan said it. Silence about release impact is a finding.
 - **Verify a load-bearing finding yourself before acting on it.** Reviewers can be confidently wrong.

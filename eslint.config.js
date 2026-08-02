@@ -33,6 +33,7 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/', 'coverage/', 'node_modules/', 'examples/', '*.config.ts', '*.config.js'],
+    // research/ is experiment scratch, deliberately outside the toolchain gates like examples/
+    ignores: ['dist/', 'coverage/', 'node_modules/', 'examples/', 'research/', '*.config.ts', '*.config.js'],
   },
 );
