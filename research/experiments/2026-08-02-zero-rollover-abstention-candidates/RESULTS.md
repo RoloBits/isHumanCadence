@@ -70,8 +70,10 @@ did not abstain, every candidate reproduces the baseline score to 1e-12.
 B is not free and it is not a fix:
 
 - **Real humans pay 7.4 points of headroom:** the fraction of real windows at or above 0.70
-  falls from 0.833 to 0.759. 74 of 646 zero-rollover real windows that were >= 0.70 drop
-  below it. These are genuine typists who would now need another window to reach `human`.
+  falls from 0.833 to 0.759 — about 181 of the 2,448 real windows that were >= 0.70 drop
+  below it (0.074 x 2448; the printed RESULT lines are the measurement, this count is derived
+  from them). Only zero-rollover windows can move under B, so those 181 all come from that
+  subset. These are genuine typists who would now need another window to reach `human`.
 - **replayBot is only half-closed:** its median drops below 0.70, but 30% of seeds still score
   >= 0.70 (down from 98%). B narrows the replay gap; it does not shut it. gaussianBot is
   nearly closed (68% -> 2%).
