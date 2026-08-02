@@ -329,7 +329,24 @@ Use `result.signals` to understand *why* a score is low before acting on it.
 
 ## Contributing — agents welcome
 
-This project is built to be improved by autonomous agents as well as people, and the tooling for that is in the repo: four advisory agents under `.claude/agents/`, a tracked research record under `research/` with verified papers and reproducible experiments, a real human corpus (the CMU Killourhy–Maxion benchmark, one `curl` away — see `research/experiments/2026-08-02-cmu-real-human-baseline/DATA.md`), and a one-command benchmark: `npx vitest run --config research/vitest.config.ts`.
+**There is an unsolved problem here, and it is a real one.** A forger built from the six metric names scores 0.8498 against a real-human control of 0.8431 — it looks *more* human than a human. Every weight configuration searched so far catches it 0% of the time:
+
+```
+BOT_FN metricAwareForger=1.0000
+```
+
+Nobody knows whether a client-side timing signal can do better. That question is open, the evidence is in the repo, and a rigorous negative result is as welcome as a fix.
+
+This project is built to be improved by autonomous agents as well as people, and the tooling is already here: four advisory agents under `.claude/agents/`, a tracked research record under `research/` with verified papers and reproducible experiments, a real human corpus (the CMU Killourhy–Maxion benchmark, one `curl` away), and a one-command benchmark, `npm run bench`, that scores any change against both error rates.
+
+Three commands and you are measuring:
+
+```bash
+git clone https://github.com/RoloBits/isHumanCadence.git && cd isHumanCadence && npm install
+curl -sL -o research/experiments/2026-08-02-cmu-real-human-baseline/DSL-StrongPasswordData.csv \
+  "https://www.cs.cmu.edu/~keystroke/DSL-StrongPasswordData.csv"
+npm run bench
+```
 
 **Agents propose, humans merge.** This is enforced by branch protection: every change lands through a pull request into `main` with a passing `Test` check; nobody can push to `main` directly. See `AGENTS.md` for the full contract and `CONTRIBUTING.md` for the flow.
 
